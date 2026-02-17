@@ -40,6 +40,10 @@ function App() {
   const [result, setResult] = useState(null);
   const [backendHealth, setBackendHealth] = useState("unknown"); // unknown | ok | error
   const [backendHealthMessage, setBackendHealthMessage] = useState("");
+  const [plannedSteps, setPlannedSteps] = useState([]); // {id, text}
+  const [newStepText, setNewStepText] = useState("");
+  const [showExport, setShowExport] = useState(false);
+  const [exportCopied, setExportCopied] = useState(false);
 
   const canCall = useMemo(
     () => Boolean(backendUrl && currentGoal.trim() && screenshotFile),
@@ -62,6 +66,9 @@ function App() {
       if (parsed.context) {
         setContext({ ...initialContext, ...parsed.context });
       }
+      if (parsed.plannedSteps && Array.isArray(parsed.plannedSteps)) {
+        setPlannedSteps(parsed.plannedSteps);
+      }
     } catch (e) {
       console.error("Failed to restore state", e);
     }
@@ -75,12 +82,13 @@ function App() {
         sessionId,
         globalGoal,
         context,
+        plannedSteps,
       };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
       console.error("Failed to persist state", e);
     }
-  }, [sessionId, globalGoal, context]);
+  }, [sessionId, globalGoal, context, plannedSteps]);
 
   // Health check for backend
   useEffect(() => {
@@ -321,6 +329,66 @@ function App() {
     setTab("interactive");
   }, []);
 
+  const handleAddPlannedStep = useCallback(() => {
+    const text = newStepText.trim();
+    if (!text) return;
+    setPlannedSteps((prev) => [...prev, { id: crypto.randomUUID(), text }]);
+    setNewStepText("");
+  }, [newStepText]);
+
+  const handleUsePlannedStep = useCallback((step) => {
+    setCurrentGoal(step.text);
+  }, []);
+
+  const handleDeletePlannedStep = useCallback((id) => {
+    setPlannedSteps((prev) => prev.filter((step) => step.id !== id));
+  }, []);
+
+  const exportPayload = useMemo(
+    () => ({
+      session_id: sessionId,
+      global_goal: globalGoal,
+      viewport: { width: viewportWidth, height: viewportHeight },
+      backend_url: backendUrl || null,
+      planned_steps: plannedSteps,
+      context,
+      history: context.recent_history || [],
+    }),
+    [sessionId, globalGoal, viewportWidth, viewportHeight, backendUrl, plannedSteps, context],
+  );
+
+  const exportJson = useMemo(() => JSON.stringify(exportPayload, null, 2), [exportPayload]);
+
+  const handleCopyExport = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard
+      .writeText(exportJson)
+      .then(() => {
+        setExportCopied(true);
+        setTimeout(() => setExportCopied(false), 1500);
+      })
+      .catch((e) => {
+        console.error("Failed to copy export", e);
+      });
+  }, [exportJson]);
+
+  const handleDownloadExport = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const blob = new Blob([exportJson], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ui-workflow-${sessionId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Failed to download export", e);
+    }
+  }, [exportJson, sessionId]);
+
   const backendStatus = useMemo(() => {
     if (!backendUrl) return "Backend URL is not configured";
     return backendHealthMessage || `Backend: ${backendUrl}`;
@@ -448,6 +516,70 @@ function App() {
           </div>
 
           <div className="space-y-2">
+            <label className="text-xs font-medium text-slate-200" htmlFor="planned-step-input">
+              Planned Workflow Steps
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="planned-step-input"
+                data-testid="planned-step-input"
+                type="text"
+                placeholder="e.g. Open login page, fill email, fill password, click Login"
+                className="flex-1 rounded-md bg-slate-900 border border-slate-700 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 placeholder:text-slate-500"
+                value={newStepText}
+                onChange={(e) => setNewStepText(e.target.value)}
+              />
+              <button
+                type="button"
+                data-testid="planned-step-add-button"
+                onClick={handleAddPlannedStep}
+                className="rounded-md bg-slate-800 border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-100 hover:border-sky-500 hover:text-sky-300"
+              >
+                Add
+              </button>
+            </div>
+            {plannedSteps.length > 0 && (
+              <ul
+                className="max-h-24 overflow-auto space-y-1 text-[11px]"
+                data-testid="planned-steps-list"
+              >
+                {plannedSteps.map((step, index) => (
+                  <li
+                    key={step.id}
+                    className="flex items-start justify-between gap-2 rounded-md bg-slate-900 border border-slate-800 px-2 py-1.5"
+                    data-testid={`planned-step-item-${index + 1}`}
+                  >
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                        Step {index + 1}
+                      </div>
+                      <div className="text-slate-100">{step.text}</div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        data-testid={`planned-step-use-${index + 1}`}
+                        onClick={() => handleUsePlannedStep(step)}
+                        className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] text-slate-100 border border-slate-700 hover:border-sky-500 hover:text-sky-300"
+                      >
+                        Use
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`planned-step-delete-${index + 1}`}
+                        onClick={() => handleDeletePlannedStep(step.id)}
+                        className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] text-slate-400 border border-slate-800 hover:border-rose-500 hover:text-rose-300"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-2">
             <label className="text-xs font-medium text-slate-200" htmlFor="screenshot-input">
               Screenshot
             </label>
@@ -486,7 +618,7 @@ function App() {
           </div>
 
           <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 mt-1" data-testid="global-hints">
-            <span>Session and context are persisted locally for easier multi-step workflows.</span>
+            <span>Session, planned steps, and context are persisted locally for multi-step workflows.</span>
           </div>
 
           {error && (
@@ -552,7 +684,7 @@ function App() {
           </div>
 
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 gap-2">
               <div className="flex gap-2" data-testid="output-tabs">
                 <button
                   type="button"
@@ -591,10 +723,51 @@ function App() {
                   Step Timeline
                 </button>
               </div>
-              <div className="text-[11px] text-slate-500" data-testid="loop-step-indicator">
-                Step: {context.loop_step || 1}
+              <div className="flex items-center gap-2">
+                <div className="text-[11px] text-slate-500" data-testid="loop-step-indicator">
+                  Step: {context.loop_step || 1}
+                </div>
+                <button
+                  type="button"
+                  data-testid="export-workflow-button"
+                  onClick={() => setShowExport((v) => !v)}
+                  className="px-2 py-1 text-[11px] rounded-md border border-slate-700 text-slate-300 hover:border-sky-500 hover:text-sky-200"
+                >
+                  {showExport ? "Hide Export" : "Export JSON"}
+                </button>
               </div>
             </div>
+
+            {showExport && (
+              <div className="mb-3 text-xs" data-testid="export-panel">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-slate-400 uppercase tracking-[0.16em] text-[10px]">
+                    WORKFLOW JSON
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      data-testid="export-copy-button"
+                      onClick={handleCopyExport}
+                      className="rounded-md bg-slate-800 px-2 py-1 text-[10px] text-slate-100 border border-slate-700 hover:border-sky-500 hover:text-sky-300"
+                    >
+                      {exportCopied ? "Copied" : "Copy"}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="export-download-button"
+                      onClick={handleDownloadExport}
+                      className="rounded-md bg-slate-800 px-2 py-1 text-[10px] text-slate-100 border border-slate-700 hover:border-sky-500 hover:text-sky-300"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+                <pre className="max-h-48 overflow-auto rounded-md bg-slate-950 border border-slate-800 px-2 py-2 text-[11px] leading-snug text-slate-200">
+                  {exportJson}
+                </pre>
+              </div>
+            )}
 
             {tab === "interactive" ? (
               <div className="space-y-3" data-testid="output-interactive-panel">
@@ -749,7 +922,7 @@ function App() {
                   context.recent_history
                     .slice()
                     .reverse()
-                    .map((step) => (
+                    .map((step, index) => (
                       <button
                         type="button"
                         key={step.step}
@@ -767,6 +940,11 @@ function App() {
                           {step.plan && (
                             <div className="text-[10px] text-slate-500" data-testid="timeline-plan">
                               {step.plan}
+                            </div>
+                          )}
+                          {typeof index === "number" && plannedSteps[index] && (
+                            <div className="text-[10px] text-slate-500">
+                              Planned: {plannedSteps[index].text}
                             </div>
                           )}
                         </div>
