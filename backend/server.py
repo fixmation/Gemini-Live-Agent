@@ -166,6 +166,13 @@ You MUST output ONLY a single JSON object with this exact schema and nothing els
   "status": "IN_PROGRESS" | "SUCCESS"
 }
 
+
+@app.get("/api/health")
+async def health() -> dict:
+    """Simple health check endpoint for frontend connectivity tests."""
+    return {"status": "ok", "provider": "gemini", "model": GEMINI_MODEL_NAVIGATION}
+
+
 Rules:
 - Never include any explanatory text, markdown, backticks, or comments outside of the JSON.
 - Do not wrap the JSON in code fences.

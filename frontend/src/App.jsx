@@ -23,6 +23,8 @@ const initialContext = {
   },
 };
 
+const STORAGE_KEY = "ui-navigator-state-v1";
+
 function App() {
   const [tab, setTab] = useState("interactive");
   const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
@@ -32,6 +34,9 @@ function App() {
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [backendHealth, setBackendHealth] = useState("unknown"); // unknown | ok | error
+  const [backendHealthMessage, setBackendHealthMessage] = useState("");
+
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
 
@@ -140,6 +145,7 @@ function App() {
             coords: data.coords,
             status: data.status,
             plan: data.plan,
+            text_input: data.text_input,
           };
 
           return {
@@ -154,9 +160,103 @@ function App() {
           };
         });
       } catch (err) {
+
+  const handleTimelineSelect = useCallback(
+    (step) => {
+      if (!step) return;
+      setResult({
+        plan: step.plan || "",
+        action: step.action,
+        target: step.target,
+        coords: step.coords,
+        text_input: step.text_input || "",
+        status: step.status,
+      });
+      setTab("interactive");
+    },
+    [],
+  );
+
         console.error(err);
         setError(err.message || "Request failed.");
       } finally {
+
+  // Load state from localStorage on first mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed.sessionId) {
+        setSessionId(parsed.sessionId);
+      }
+      if (parsed.globalGoal) {
+        setGlobalGoal(parsed.globalGoal);
+      }
+      if (parsed.context) {
+        setContext({ ...initialContext, ...parsed.context });
+      }
+    } catch (e) {
+      console.error("Failed to restore state", e);
+    }
+  }, []);
+
+  // Persist state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const payload = {
+        sessionId,
+        globalGoal,
+        context,
+      };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.error("Failed to persist state", e);
+    }
+  }, [sessionId, globalGoal, context]);
+
+  // Health check for backend
+  useEffect(() => {
+    if (!backendUrl) {
+      setBackendHealth("unknown");
+      setBackendHealthMessage("Backend URL is not configured");
+      return;
+    }
+
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const res = await fetch(`${backendUrl}/health`, { method: "GET" });
+        if (cancelled) return;
+        if (!res.ok) {
+          setBackendHealth("error");
+          setBackendHealthMessage(`Health check failed: ${res.status}`);
+          return;
+        }
+        const data = await res.json();
+        setBackendHealth("ok");
+        setBackendHealthMessage(
+          data && data.model
+            ? `Online • ${data.provider || "gemini"}/${data.model}`
+            : "Online",
+        );
+      } catch (e) {
+        if (cancelled) return;
+        setBackendHealth("error");
+        setBackendHealthMessage("Health check error");
+      }
+    };
+
+    check();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [backendUrl]);
+
         setIsLoading(false);
       }
     },
@@ -165,8 +265,8 @@ function App() {
 
   const backendStatus = useMemo(() => {
     if (!backendUrl) return "Backend URL is not configured";
-    return `Backend: ${backendUrl}`;
-  }, [backendUrl]);
+    return backendHealthMessage || `Backend: ${backendUrl}`;
+  }, [backendUrl, backendHealthMessage]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-50">
@@ -179,8 +279,18 @@ function App() {
             Visual agent that becomes your hands on screen.
           </p>
         </div>
-        <div className="text-xs text-slate-400" data-testid="backend-status">
-          {backendStatus}
+        <div className="flex items-center gap-2 text-xs text-slate-400" data-testid="backend-status">
+          <span
+            data-testid="backend-health-indicator"
+            className={`inline-block h-2.5 w-2.5 rounded-full border border-slate-700 ${
+              backendHealth === "ok"
+                ? "bg-emerald-400 border-emerald-500"
+                : backendHealth === "error"
+                  ? "bg-rose-500 border-rose-500"
+                  : "bg-slate-700"
+            }`}
+          />
+          <span className="truncate max-w-[220px]">{backendStatus}</span>
         </div>
       </header>
 
@@ -478,9 +588,11 @@ function App() {
                     .slice()
                     .reverse()
                     .map((step) => (
-                      <div
+                      <button
+                        type="button"
                         key={step.step}
-                        className="flex items-start justify-between gap-3 rounded-md bg-slate-900/80 px-2 py-1.5 border border-slate-800"
+                        onClick={() => handleTimelineSelect(step)}
+                        className="w-full text-left flex items-start justify-between gap-3 rounded-md bg-slate-900/80 px-2 py-1.5 border border-slate-800 hover:border-sky-500/80 hover:bg-slate-900"
                         data-testid={`timeline-item-${step.step}`}
                       >
                         <div className="space-y-0.5">
