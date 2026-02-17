@@ -461,7 +461,7 @@ function App() {
           className="space-y-4 bg-slate-900/60 border border-slate-800 rounded-xl p-4 shadow-lg shadow-slate-950/40"
           data-testid="control-panel"
         >
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="space-y-1">
               <label className="text-xs uppercase tracking-[0.16em] text-slate-400">
                 Session
