@@ -159,6 +159,74 @@ function App() {
             recent_history: [...prev.recent_history.slice(-9), historyEntry],
           };
         });
+
+
+  const handleMarkExecution = useCallback((isSuccess) => {
+    setContext((prev) => {
+      if (!prev.recent_history || prev.recent_history.length === 0) return prev;
+      const history = [...prev.recent_history];
+      const lastIndex = history.length - 1;
+      const last = {
+        ...history[lastIndex],
+        execution_result: {
+          success: isSuccess,
+          details: isSuccess
+            ? "Marked as success from UI Navigator Studio."
+            : "Marked as failure from UI Navigator Studio.",
+        },
+      };
+      history[lastIndex] = last;
+
+      const nextErrorState = isSuccess
+        ? {
+            has_error: false,
+            last_error_message: null,
+            retry_count_for_current_goal: 0,
+          }
+        : {
+            ...prev.error_state,
+            has_error: true,
+            last_error_message:
+              "Last step marked as failure from UI Navigator Studio.",
+            retry_count_for_current_goal:
+              (prev.error_state?.retry_count_for_current_goal || 0) + 1,
+          };
+
+      return {
+        ...prev,
+        recent_history: history,
+        error_state: nextErrorState,
+      };
+    });
+  }, []);
+
+  const pixelCoords = useMemo(() => {
+    if (!result?.coords || !viewportWidth || !viewportHeight) return null;
+    const { x, y } = result.coords;
+    return {
+      x: Math.round((x / 1000) * viewportWidth),
+      y: Math.round((y / 1000) * viewportHeight),
+    };
+  }, [result, viewportWidth, viewportHeight]);
+
+  const pyautoguiSnippet = useMemo(() => {
+    if (!pixelCoords) return "";
+    return `import pyautogui\n\npyautogui.click(${pixelCoords.x}, ${pixelCoords.y})`;
+  }, [pixelCoords]);
+        <div className="text-xs text-slate-400" data-testid="app-tagline">
+          Orchestrate multi-step visual navigation workflows.
+        </div>
+
+
+          <p className="text-[11px] text-slate-500" data-testid="backend-url-hint">
+            {backendUrl ? backendUrl : "Set REACT_APP_BACKEND_URL in your frontend environment to connect."}
+          </p>
+
+  const seleniumSnippet = useMemo(() => {
+    if (!pixelCoords) return "";
+    return `from selenium.webdriver.common.action_chains import ActionChains\n\nactions = ActionChains(driver)\nactions.move_by_offset(${pixelCoords.x}, ${pixelCoords.y}).click().perform()`;
+  }, [pixelCoords]);
+
       } catch (err) {
 
   const handleTimelineSelect = useCallback(
@@ -166,6 +234,35 @@ function App() {
       if (!step) return;
       setResult({
         plan: step.plan || "",
+          <div className="flex gap-4 text-[11px] text-slate-500" data-testid="viewport-settings">
+            <div className="flex items-center gap-2">
+              <span>Viewport:</span>
+              <input
+                type="number"
+                min={320}
+                max={7680}
+                value={viewportWidth}
+                onChange={(e) => setViewportWidth(Number(e.target.value) || 0)}
+                className="w-20 rounded-md bg-slate-900 border border-slate-700 px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+                data-testid="viewport-width-input"
+              />
+              <span>x</span>
+              <input
+          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500" data-testid="global-hints">
+            <span>Session and context are persisted locally for easier multi-step workflows.</span>
+          </div>
+
+                type="number"
+                min={200}
+                max={4320}
+                value={viewportHeight}
+                onChange={(e) => setViewportHeight(Number(e.target.value) || 0)}
+                className="w-20 rounded-md bg-slate-900 border border-slate-700 px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+                data-testid="viewport-height-input"
+              />
+            </div>
+          </div>
+
         action: step.action,
         target: step.target,
         coords: step.coords,
