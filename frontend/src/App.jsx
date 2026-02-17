@@ -484,9 +484,9 @@ function App() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-col gap-1 text-[11px] text-slate-500" data-testid="viewport-settings">
+            <div className="flex flex-col gap-1 text-[11px] text-slate-500 w-full md:w-auto" data-testid="viewport-settings">
               <span className="uppercase tracking-[0.16em] text-slate-400">Viewport</span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="number"
                   min={320}
