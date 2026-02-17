@@ -112,7 +112,7 @@ def build_chat() -> LlmChat:
     return chat
 
 
-async def call_navigation_agent(image_path: str, mime_type: str, goal: str) -> NavigationAction:
+async def call_navigation_agent(image_path: str, mime_type: str, goal: str, session_id: str | None = None, context: str | None = None) -> NavigationAction:
     chat = build_chat()
 
     file_content = FileContentWithMimeType(
@@ -120,11 +120,15 @@ async def call_navigation_agent(image_path: str, mime_type: str, goal: str) -> N
         mime_type=mime_type,
     )
 
-    user_text = (
-        "User Goal: "
-        + goal.strip()
-        + "\n\nRemember: respond with ONLY the JSON object, nothing else."
-    )
+    # Build rich user instruction including optional session and context for better reasoning
+    parts = [f"User Goal: {goal.strip()}"]
+    if session_id:
+        parts.append(f"Session ID: {session_id}")
+    if context:
+        parts.append(f"Context: {context}")
+
+    parts.append("Remember: respond with ONLY the JSON object, nothing else.")
+    user_text = "\n".join(parts)
 
     response_text = await chat.send_message(
         UserMessage(text=user_text, file_contents=[file_content])
