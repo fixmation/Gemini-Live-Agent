@@ -131,25 +131,28 @@ function App() {
 
         setResult(data);
         // update minimal context with latest action
-        setContext((prev) => ({
-          ...prev,
-          loop_step: (prev.loop_step || 0) + 1,
-          last_action: {
-            step: (prev.loop_step || 0) + 1,
-            navigation_action: data,
-            sent_goal: currentGoal,
-          },
-          recent_history: [
-            ...prev.recent_history.slice(-4),
-            {
-              step: (prev.loop_step || 0) + 1,
-              action: data.action,
-              target: data.target,
-              coords: data.coords,
-              status: data.status,
+        setContext((prev) => {
+          const nextStep = (prev.loop_step || 0) + 1;
+          const historyEntry = {
+            step: nextStep,
+            action: data.action,
+            target: data.target,
+            coords: data.coords,
+            status: data.status,
+            plan: data.plan,
+          };
+
+          return {
+            ...prev,
+            loop_step: nextStep,
+            last_action: {
+              step: nextStep,
+              navigation_action: data,
+              sent_goal: currentGoal,
             },
-          ],
-        }));
+            recent_history: [...prev.recent_history.slice(-9), historyEntry],
+          };
+        });
       } catch (err) {
         console.error(err);
         setError(err.message || "Request failed.");
