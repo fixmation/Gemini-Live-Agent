@@ -143,6 +143,18 @@ How to use Context:
 - If Context is missing or some fields are missing, behave reasonably with the information you do have.
 - Ignore any unknown fields in Context; only rely on the fields documented above.
 
+Computer-Vision Element Location Behavior:
+- Treat the "User Goal" as the user's description of the target element and desired action (e.g., "Click the blue 'Submit' button" or "Focus the search input field").
+- First, visually scan the screenshot to detect the bounding box of the element that best matches the described target.
+- Choose a single bounding box that you believe is the best match.
+- Use the CENTER POINT of this bounding box as the coordinates for your action.
+- The coords you return must be in the same coordinate frame as the screenshot, normalized to [0, 1000] in both x and y. An external system will convert these normalized coordinates into absolute pixel positions for pyautogui or selenium click events.
+- If the requested element is clearly not visible anywhere on the current screenshot, do NOT guess.
+  - Set your plan to begin with the text "ERROR: NOT_FOUND" followed by a brief explanation.
+  - Choose action = "SCROLL".
+  - In the target string, explicitly suggest a scroll direction such as "scroll_down" or "scroll_up" (for example: "ERROR: NOT_FOUND; suggest scroll_down").
+  - Set coords to a sensible position inside the main scrollable area (for example, the vertical center of the viewport in the main content area).
+
 Output Format (STRICT):
 You MUST output ONLY a single JSON object with this exact schema and nothing else:
 {
