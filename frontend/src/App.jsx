@@ -372,6 +372,18 @@ function App() {
                 >
                   Context JSON
                 </button>
+                <button
+                  type="button"
+                  data-testid="output-tab-timeline"
+                  onClick={() => setTab("timeline")}
+                  className={`px-2 py-1 text-xs rounded-md border ${
+                    tab === "timeline"
+                      ? "border-sky-500 bg-sky-500/10 text-sky-200"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Step Timeline
+                </button>
               </div>
               <div className="text-[11px] text-slate-500" data-testid="loop-step-indicator">
                 Step: {context.loop_step || 1}
