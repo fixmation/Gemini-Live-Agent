@@ -41,6 +41,7 @@ function App() {
   const [backendHealth, setBackendHealth] = useState("unknown"); // unknown | ok | error
   const [backendHealthMessage, setBackendHealthMessage] = useState("");
   const [plannedSteps, setPlannedSteps] = useState([]); // {id, text}
+  const [currentPlannedIndex, setCurrentPlannedIndex] = useState(0);
   const [newStepText, setNewStepText] = useState("");
   const [showExport, setShowExport] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
@@ -69,6 +70,9 @@ function App() {
       if (parsed.plannedSteps && Array.isArray(parsed.plannedSteps)) {
         setPlannedSteps(parsed.plannedSteps);
       }
+      if (typeof parsed.currentPlannedIndex === "number") {
+        setCurrentPlannedIndex(parsed.currentPlannedIndex);
+      }
     } catch (e) {
       console.error("Failed to restore state", e);
     }
@@ -83,6 +87,7 @@ function App() {
         globalGoal,
         context,
         plannedSteps,
+        currentPlannedIndex,
       };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -194,7 +199,18 @@ function App() {
         error_state: nextErrorState,
       };
     });
-  }, []);
+
+    if (isSuccess && plannedSteps.length) {
+      setCurrentPlannedIndex((prevIndex) => {
+        const nextIndex = Math.min(prevIndex + 1, plannedSteps.length - 1);
+        const nextStep = plannedSteps[nextIndex];
+        if (nextStep) {
+          setCurrentGoal(nextStep.text);
+        }
+        return nextIndex;
+      });
+    }
+  }, [plannedSteps]);
 
   const pixelCoords = useMemo(() => {
     if (!result?.coords || !viewportWidth || !viewportHeight) return null;
@@ -336,13 +352,22 @@ function App() {
     setNewStepText("");
   }, [newStepText]);
 
-  const handleUsePlannedStep = useCallback((step) => {
+  const handleUsePlannedStep = useCallback((step, index) => {
+    setCurrentPlannedIndex(index);
     setCurrentGoal(step.text);
   }, []);
 
   const handleDeletePlannedStep = useCallback((id) => {
     setPlannedSteps((prev) => prev.filter((step) => step.id !== id));
   }, []);
+
+  const handleUseNextPlannedStep = useCallback(() => {
+    if (!plannedSteps.length) return;
+    const index = Math.min(currentPlannedIndex, plannedSteps.length - 1);
+    const step = plannedSteps[index];
+    if (!step) return;
+    setCurrentGoal(step.text);
+  }, [plannedSteps, currentPlannedIndex]);
 
   const exportPayload = useMemo(
     () => ({
@@ -559,7 +584,7 @@ function App() {
                       <button
                         type="button"
                         data-testid={`planned-step-use-${index + 1}`}
-                        onClick={() => handleUsePlannedStep(step)}
+                        onClick={() => handleUsePlannedStep(step, index)}
                         className="rounded-md bg-slate-800 px-2 py-0.5 text-[10px] text-slate-100 border border-slate-700 hover:border-sky-500 hover:text-sky-300"
                       >
                         Use
@@ -597,6 +622,16 @@ function App() {
           </div>
 
           <div className="flex flex-wrap gap-2 mt-2">
+            {plannedSteps.length > 0 && (
+              <button
+                type="button"
+                data-testid="use-next-planned-step-button"
+                onClick={handleUseNextPlannedStep}
+                className="inline-flex items-center justify-center gap-1 rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-100 border border-slate-600 hover:border-sky-500 hover:text-sky-300"
+              >
+                Use Next Planned Step (#{Math.min(currentPlannedIndex + 1, plannedSteps.length)})
+              </button>
+            )}
             <button
               data-testid="call-multipart-button"
               type="button"
@@ -943,7 +978,7 @@ function App() {
                             </div>
                           )}
                           {typeof index === "number" && plannedSteps[index] && (
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-[10px] text-slate-500" data-testid="timeline-planned-label">
                               Planned: {plannedSteps[index].text}
                             </div>
                           )}
