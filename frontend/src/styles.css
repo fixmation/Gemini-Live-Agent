@@ -1,8 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@source "./styles.css";
 
 body {
-  @apply bg-slate-950 text-slate-50;
+  background-color: #020617; /* equivalent to bg-slate-950 */
+  color: #f9fafb; /* equivalent to text-slate-50 */
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
