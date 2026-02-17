@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || "";
 
@@ -33,250 +33,18 @@ function App() {
   const [context, setContext] = useState(initialContext);
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
+  const [viewportWidth, setViewportWidth] = useState(1920);
+  const [viewportHeight, setViewportHeight] = useState(1080);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
   const [backendHealth, setBackendHealth] = useState("unknown"); // unknown | ok | error
   const [backendHealthMessage, setBackendHealthMessage] = useState("");
 
-  const [error, setError] = useState("");
-  const [result, setResult] = useState(null);
-
   const canCall = useMemo(
-    () => Boolean(backendUrl && currentGoal && screenshotFile),
+    () => Boolean(backendUrl && currentGoal.trim() && screenshotFile),
     [backendUrl, currentGoal, screenshotFile],
   );
-
-  const handleScreenshotChange = (e) => {
-    const file = e.target.files?.[0];
-    setError("");
-    setResult(null);
-
-    if (!file) {
-      setScreenshotFile(null);
-      setScreenshotPreview(null);
-      return;
-    }
-
-    setScreenshotFile(file);
-    const url = URL.createObjectURL(file);
-    setScreenshotPreview(url);
-  };
-
-  const buildContextString = useCallback(() => {
-    const ctx = {
-      ...context,
-      session_id: sessionId,
-      loop_step: (context.loop_step || 0) + 1,
-      global_goal: globalGoal || currentGoal,
-      current_subgoal: currentGoal,
-    };
-    return JSON.stringify(ctx, null, 2);
-  }, [context, sessionId, globalGoal, currentGoal]);
-
-  const handleCallNavigate = useCallback(
-    async (mode) => {
-      if (!backendUrl) {
-        setError("Backend URL is not configured.");
-        return;
-      }
-      if (!screenshotFile) {
-        setError("Please select a screenshot first.");
-        return;
-      }
-      if (!currentGoal.trim()) {
-        setError("Please enter a navigation goal.");
-        return;
-      }
-
-      setIsLoading(true);
-      setError("");
-      setResult(null);
-
-      try {
-        const ctxString = buildContextString();
-        let response;
-
-        if (mode === "multipart") {
-          const formData = new FormData();
-          formData.append("screenshot", screenshotFile);
-          formData.append("goal", currentGoal);
-          formData.append("session_id", sessionId);
-          formData.append("context", ctxString);
-
-          response = await fetch(`${backendUrl}/navigate`, {
-            method: "POST",
-            body: formData,
-          });
-        } else {
-          // base64 mode
-          const fileArrayBuffer = await screenshotFile.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(fileArrayBuffer)));
-
-          const payload = {
-            image_base64: base64,
-            mime_type: screenshotFile.type || undefined,
-            goal: currentGoal,
-            session_id: sessionId,
-            context: ctxString,
-          };
-
-          response = await fetch(`${backendUrl}/navigate/base64`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
-        }
-
-        const data = await response.json();
-        if (!response.ok) {
-          setError(typeof data === "string" ? data : data.detail || "Unknown error");
-          return;
-        }
-
-        setResult(data);
-        // update minimal context with latest action
-        setContext((prev) => {
-          const nextStep = (prev.loop_step || 0) + 1;
-          const historyEntry = {
-            step: nextStep,
-            action: data.action,
-            target: data.target,
-            coords: data.coords,
-            status: data.status,
-            plan: data.plan,
-            text_input: data.text_input,
-          };
-
-          return {
-            ...prev,
-            loop_step: nextStep,
-            last_action: {
-              step: nextStep,
-              navigation_action: data,
-              sent_goal: currentGoal,
-            },
-            recent_history: [...prev.recent_history.slice(-9), historyEntry],
-          };
-        });
-
-
-  const handleMarkExecution = useCallback((isSuccess) => {
-    setContext((prev) => {
-      if (!prev.recent_history || prev.recent_history.length === 0) return prev;
-      const history = [...prev.recent_history];
-      const lastIndex = history.length - 1;
-      const last = {
-        ...history[lastIndex],
-        execution_result: {
-          success: isSuccess,
-          details: isSuccess
-            ? "Marked as success from UI Navigator Studio."
-            : "Marked as failure from UI Navigator Studio.",
-        },
-      };
-      history[lastIndex] = last;
-
-      const nextErrorState = isSuccess
-        ? {
-            has_error: false,
-            last_error_message: null,
-            retry_count_for_current_goal: 0,
-          }
-        : {
-            ...prev.error_state,
-            has_error: true,
-            last_error_message:
-              "Last step marked as failure from UI Navigator Studio.",
-            retry_count_for_current_goal:
-              (prev.error_state?.retry_count_for_current_goal || 0) + 1,
-          };
-
-      return {
-        ...prev,
-        recent_history: history,
-        error_state: nextErrorState,
-      };
-    });
-  }, []);
-
-  const pixelCoords = useMemo(() => {
-    if (!result?.coords || !viewportWidth || !viewportHeight) return null;
-    const { x, y } = result.coords;
-    return {
-      x: Math.round((x / 1000) * viewportWidth),
-      y: Math.round((y / 1000) * viewportHeight),
-    };
-  }, [result, viewportWidth, viewportHeight]);
-
-  const pyautoguiSnippet = useMemo(() => {
-    if (!pixelCoords) return "";
-    return `import pyautogui\n\npyautogui.click(${pixelCoords.x}, ${pixelCoords.y})`;
-  }, [pixelCoords]);
-        <div className="text-xs text-slate-400" data-testid="app-tagline">
-          Orchestrate multi-step visual navigation workflows.
-        </div>
-
-
-          <p className="text-[11px] text-slate-500" data-testid="backend-url-hint">
-            {backendUrl ? backendUrl : "Set REACT_APP_BACKEND_URL in your frontend environment to connect."}
-          </p>
-
-  const seleniumSnippet = useMemo(() => {
-    if (!pixelCoords) return "";
-    return `from selenium.webdriver.common.action_chains import ActionChains\n\nactions = ActionChains(driver)\nactions.move_by_offset(${pixelCoords.x}, ${pixelCoords.y}).click().perform()`;
-  }, [pixelCoords]);
-
-      } catch (err) {
-
-  const handleTimelineSelect = useCallback(
-    (step) => {
-      if (!step) return;
-      setResult({
-        plan: step.plan || "",
-          <div className="flex gap-4 text-[11px] text-slate-500" data-testid="viewport-settings">
-            <div className="flex items-center gap-2">
-              <span>Viewport:</span>
-              <input
-                type="number"
-                min={320}
-                max={7680}
-                value={viewportWidth}
-                onChange={(e) => setViewportWidth(Number(e.target.value) || 0)}
-                className="w-20 rounded-md bg-slate-900 border border-slate-700 px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
-                data-testid="viewport-width-input"
-              />
-              <span>x</span>
-              <input
-          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500" data-testid="global-hints">
-            <span>Session and context are persisted locally for easier multi-step workflows.</span>
-          </div>
-
-                type="number"
-                min={200}
-                max={4320}
-                value={viewportHeight}
-                onChange={(e) => setViewportHeight(Number(e.target.value) || 0)}
-                className="w-20 rounded-md bg-slate-900 border border-slate-700 px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
-                data-testid="viewport-height-input"
-              />
-            </div>
-          </div>
-
-        action: step.action,
-        target: step.target,
-        coords: step.coords,
-        text_input: step.text_input || "",
-        status: step.status,
-      });
-      setTab("interactive");
-    },
-    [],
-  );
-
-        console.error(err);
-        setError(err.message || "Request failed.");
-      } finally {
 
   // Load state from localStorage on first mount
   useEffect(() => {
@@ -354,11 +122,204 @@ function App() {
     };
   }, [backendUrl]);
 
+  const handleScreenshotChange = (e) => {
+    const file = e.target.files?.[0];
+    setError("");
+    setResult(null);
+
+    if (!file) {
+      setScreenshotFile(null);
+      setScreenshotPreview(null);
+      return;
+    }
+
+    setScreenshotFile(file);
+    const url = URL.createObjectURL(file);
+    setScreenshotPreview(url);
+  };
+
+  const buildContextString = useCallback(() => {
+    const ctx = {
+      ...context,
+      session_id: sessionId,
+      loop_step: (context.loop_step || 0) + 1,
+      global_goal: globalGoal || currentGoal,
+      current_subgoal: currentGoal,
+    };
+    return JSON.stringify(ctx, null, 2);
+  }, [context, sessionId, globalGoal, currentGoal]);
+
+  const handleMarkExecution = useCallback((isSuccess) => {
+    setContext((prev) => {
+      if (!prev.recent_history || prev.recent_history.length === 0) return prev;
+      const history = [...prev.recent_history];
+      const lastIndex = history.length - 1;
+      const last = {
+        ...history[lastIndex],
+        execution_result: {
+          success: isSuccess,
+          details: isSuccess
+            ? "Marked as success from UI Navigator Studio."
+            : "Marked as failure from UI Navigator Studio.",
+        },
+      };
+      history[lastIndex] = last;
+
+      const nextErrorState = isSuccess
+        ? {
+            has_error: false,
+            last_error_message: null,
+            retry_count_for_current_goal: 0,
+          }
+        : {
+            ...prev.error_state,
+            has_error: true,
+            last_error_message:
+              "Last step marked as failure from UI Navigator Studio.",
+            retry_count_for_current_goal:
+              (prev.error_state?.retry_count_for_current_goal || 0) + 1,
+          };
+
+      return {
+        ...prev,
+        recent_history: history,
+        error_state: nextErrorState,
+      };
+    });
+  }, []);
+
+  const pixelCoords = useMemo(() => {
+    if (!result?.coords || !viewportWidth || !viewportHeight) return null;
+    const { x, y } = result.coords;
+    return {
+      x: Math.round((x / 1000) * viewportWidth),
+      y: Math.round((y / 1000) * viewportHeight),
+    };
+  }, [result, viewportWidth, viewportHeight]);
+
+  const pyautoguiSnippet = useMemo(() => {
+    if (!pixelCoords) return "";
+    return `import pyautogui\n\npyautogui.click(${pixelCoords.x}, ${pixelCoords.y})`;
+  }, [pixelCoords]);
+
+  const seleniumSnippet = useMemo(() => {
+    if (!pixelCoords) return "";
+    return `from selenium.webdriver.common.action_chains import ActionChains\n\nactions = ActionChains(driver)\nactions.move_by_offset(${pixelCoords.x}, ${pixelCoords.y}).click().perform()`;
+  }, [pixelCoords]);
+
+  const handleCallNavigate = useCallback(
+    async (mode) => {
+      if (!backendUrl) {
+        setError("Backend URL is not configured.");
+        return;
+      }
+      if (!screenshotFile) {
+        setError("Please select a screenshot first.");
+        return;
+      }
+      if (!currentGoal.trim()) {
+        setError("Please enter a navigation goal.");
+        return;
+      }
+
+      setIsLoading(true);
+      setError("");
+      setResult(null);
+
+      try {
+        const ctxString = buildContextString();
+        let response;
+
+        if (mode === "multipart") {
+          const formData = new FormData();
+          formData.append("screenshot", screenshotFile);
+          formData.append("goal", currentGoal);
+          formData.append("session_id", sessionId);
+          formData.append("context", ctxString);
+
+          response = await fetch(`${backendUrl}/navigate`, {
+            method: "POST",
+            body: formData,
+          });
+        } else {
+          // base64 mode
+          const fileArrayBuffer = await screenshotFile.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(fileArrayBuffer)));
+
+          const payload = {
+            image_base64: base64,
+            mime_type: screenshotFile.type || undefined,
+            goal: currentGoal,
+            session_id: sessionId,
+            context: ctxString,
+          };
+
+          response = await fetch(`${backendUrl}/navigate/base64`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+          setError(typeof data === "string" ? data : data.detail || "Unknown error");
+          return;
+        }
+
+        setResult(data);
+        // update minimal context with latest action
+        setContext((prev) => {
+          const nextStep = (prev.loop_step || 0) + 1;
+          const historyEntry = {
+            step: nextStep,
+            action: data.action,
+            target: data.target,
+            coords: data.coords,
+            status: data.status,
+            plan: data.plan,
+            text_input: data.text_input,
+            sent_goal: currentGoal,
+          };
+
+          return {
+            ...prev,
+            loop_step: nextStep,
+            last_action: {
+              step: nextStep,
+              navigation_action: data,
+              sent_goal: currentGoal,
+            },
+            recent_history: [...prev.recent_history.slice(-9), historyEntry],
+          };
+        });
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Request failed.");
+      } finally {
         setIsLoading(false);
       }
     },
     [backendUrl, screenshotFile, currentGoal, sessionId, buildContextString],
   );
+
+  const handleTimelineSelect = useCallback((step) => {
+    if (!step) return;
+    setResult({
+      plan: step.plan || "",
+      action: step.action,
+      target: step.target,
+      coords: step.coords,
+      text_input: step.text_input || "",
+      status: step.status,
+    });
+    if (step.sent_goal) {
+      setCurrentGoal(step.sent_goal);
+    }
+    setTab("interactive");
+  }, []);
 
   const backendStatus = useMemo(() => {
     if (!backendUrl) return "Backend URL is not configured";
@@ -367,7 +328,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-50">
-      <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold tracking-tight" data-testid="app-title">
             UI Navigator Studio
@@ -375,19 +336,29 @@ function App() {
           <p className="text-xs text-slate-400" data-testid="app-subtitle">
             Visual agent that becomes your hands on screen.
           </p>
+          <div className="text-xs text-slate-400" data-testid="app-tagline">
+            Orchestrate multi-step visual navigation workflows.
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-400" data-testid="backend-status">
-          <span
-            data-testid="backend-health-indicator"
-            className={`inline-block h-2.5 w-2.5 rounded-full border border-slate-700 ${
-              backendHealth === "ok"
-                ? "bg-emerald-400 border-emerald-500"
-                : backendHealth === "error"
-                  ? "bg-rose-500 border-rose-500"
-                  : "bg-slate-700"
-            }`}
-          />
-          <span className="truncate max-w-[220px]">{backendStatus}</span>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2 text-xs text-slate-400" data-testid="backend-status">
+            <span
+              data-testid="backend-health-indicator"
+              className={`inline-block h-2.5 w-2.5 rounded-full border border-slate-700 ${
+                backendHealth === "ok"
+                  ? "bg-emerald-400 border-emerald-500"
+                  : backendHealth === "error"
+                    ? "bg-rose-500 border-rose-500"
+                    : "bg-slate-700"
+              }`}
+            />
+            <span className="truncate max-w-[220px]">{backendStatus}</span>
+          </div>
+          <p className="text-[11px] text-slate-500" data-testid="backend-url-hint">
+            {backendUrl
+              ? backendUrl
+              : "Set REACT_APP_BACKEND_URL in your frontend environment to connect."}
+          </p>
         </div>
       </header>
 
@@ -418,6 +389,30 @@ function App() {
                 >
                   New
                 </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1 text-[11px] text-slate-500" data-testid="viewport-settings">
+              <span className="uppercase tracking-[0.16em] text-slate-400">Viewport</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={320}
+                  max={7680}
+                  value={viewportWidth}
+                  onChange={(e) => setViewportWidth(Number(e.target.value) || 0)}
+                  className="w-20 rounded-md bg-slate-900 border border-slate-700 px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+                  data-testid="viewport-width-input"
+                />
+                <span>x</span>
+                <input
+                  type="number"
+                  min={200}
+                  max={4320}
+                  value={viewportHeight}
+                  onChange={(e) => setViewportHeight(Number(e.target.value) || 0)}
+                  className="w-20 rounded-md bg-slate-900 border border-slate-700 px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+                  data-testid="viewport-height-input"
+                />
               </div>
             </div>
           </div>
@@ -488,6 +483,10 @@ function App() {
             >
               {isLoading ? "Running..." : "Call /api/navigate/base64"}
             </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 mt-1" data-testid="global-hints">
+            <span>Session and context are persisted locally for easier multi-step workflows.</span>
           </div>
 
           {error && (
@@ -598,7 +597,7 @@ function App() {
             </div>
 
             {tab === "interactive" ? (
-              <div className="space-y-2" data-testid="output-interactive-panel">
+              <div className="space-y-3" data-testid="output-interactive-panel">
                 {result ? (
                   <>
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -625,7 +624,7 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs mt-3">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="space-y-1">
                         <div className="text-slate-400 uppercase tracking-[0.16em] text-[10px]">
                           TARGET
@@ -649,18 +648,84 @@ function App() {
                     </div>
 
                     {result.text_input && (
-                      <div className="mt-3 text-xs">
+                      <div className="text-xs">
                         <div className="text-slate-400 uppercase tracking-[0.16em] text-[10px]">
                           TEXT INPUT
                         </div>
-                        <div className="mt-1 rounded-md bg-slate-900 border border-slate-700 px-2 py-1" data-testid="output-text-input">
+                        <div
+                          className="mt-1 rounded-md bg-slate-900 border border-slate-700 px-2 py-1"
+                          data-testid="output-text-input"
+                        >
                           {result.text_input}
                         </div>
                       </div>
                     )}
 
-                    <div className="mt-3 text-[11px] text-slate-500" data-testid="output-integration-hint">
-                      Use coords as normalized positions in your automation loop, converting them to pixels for pyautogui or Selenium.
+                    {pixelCoords && (
+                      <div className="grid grid-cols-2 gap-2 text-[11px] mt-1">
+                        <div className="space-y-1">
+                          <div className="text-slate-400 uppercase tracking-[0.16em] text-[10px]">
+                            PIXEL COORDS
+                          </div>
+                          <div
+                            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-2 py-1 border border-slate-800"
+                            data-testid="output-pixel-coords"
+                          >
+                            <span>x: {pixelCoords.x}</span>
+                            <span>y: {pixelCoords.y}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-slate-400 uppercase tracking-[0.16em] text-[10px]">
+                            EXECUTION MARKER
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              data-testid="mark-success-button"
+                              onClick={() => handleMarkExecution(true)}
+                              className="flex-1 rounded-md bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 px-2 py-1"
+                            >
+                              Mark Success
+                            </button>
+                            <button
+                              type="button"
+                              data-testid="mark-failure-button"
+                              onClick={() => handleMarkExecution(false)}
+                              className="flex-1 rounded-md bg-rose-600/90 hover:bg-rose-500 text-slate-50 px-2 py-1"
+                            >
+                              Mark Failure
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {pyautoguiSnippet && (
+                      <div className="mt-1 text-[11px] space-y-1" data-testid="pyautogui-snippet-block">
+                        <div className="text-slate-400 uppercase tracking-[0.16em] text-[10px]">
+                          PYAUTOGUI SNIPPET
+                        </div>
+                        <pre className="bg-slate-950 border border-slate-800 rounded-md px-2 py-1 overflow-x-auto">
+                          {pyautoguiSnippet}
+                        </pre>
+                      </div>
+                    )}
+
+                    {seleniumSnippet && (
+                      <div className="mt-1 text-[11px] space-y-1" data-testid="selenium-snippet-block">
+                        <div className="text-slate-400 uppercase tracking-[0.16em] text-[10px]">
+                          SELENIUM SNIPPET
+                        </div>
+                        <pre className="bg-slate-950 border border-slate-800 rounded-md px-2 py-1 overflow-x-auto">
+                          {seleniumSnippet}
+                        </pre>
+                      </div>
+                    )}
+
+                    <div className="mt-1 text-[11px] text-slate-500" data-testid="output-integration-hint">
+                      Use normalized coords and the snippets above to drive pyautogui or Selenium in your
+                      automation loop.
                     </div>
                   </>
                 ) : (
@@ -711,7 +776,7 @@ function App() {
                         >
                           x:{step.coords?.x} y:{step.coords?.y}
                         </div>
-                      </div>
+                      </button>
                     ))
                 ) : (
                   <div className="text-xs text-slate-500" data-testid="timeline-empty-state">
