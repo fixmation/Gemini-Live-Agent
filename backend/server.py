@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Literal
 
 from dotenv import load_dotenv
-from emergentintegrations.llm.chat import FileContentWithMimeType, LlmChat, UserMessage
+from emergentintegrations.llm.chat import FileContentWithMimeType, ImageContent, LlmChat, UserMessage
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -53,6 +53,31 @@ class NavigationAction(BaseModel):
     coords: Coords
     text_input: str
     status: StatusEnum
+
+
+class NavigateBase64Request(BaseModel):
+    image_base64: str = Field(..., description="Base64-encoded image data (no data URL prefix)")
+    mime_type: Literal["image/png", "image/jpeg", "image/webp"] | None = Field(
+        None,
+        description="Optional MIME type; must be PNG, JPEG, or WEBP if provided",
+    )
+    goal: str = Field(..., description="User's navigation goal for this step")
+    session_id: str | None = Field(
+        None,
+        description="Optional session identifier for the agent loop",
+    )
+    context: str | None = Field(
+        None,
+        description="Optional serialized context or history for better reasoning",
+    )
+
+    @field_validator("goal")
+    @classmethod
+    def validate_goal(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Goal must be a non-empty string.")
+        return v
+
 
 
 app = FastAPI(title="UI Navigation Agent")
@@ -128,6 +153,88 @@ async def call_navigation_agent(image_path: str, mime_type: str, goal: str, sess
         parts.append(f"Context: {context}")
 
     parts.append("Remember: respond with ONLY the JSON object, nothing else.")
+
+
+async def call_navigation_agent_base64(
+    image_base64: str,
+    mime_type: str | None,
+    goal: str,
+    session_id: str | None = None,
+    context: str | None = None,
+) -> NavigationAction:
+    chat = build_chat()
+
+    # Support optional data URL prefix, but prefer raw base64 for performance
+    base64_str = image_base64.strip()
+    if base64_str.startswith("data:") and "," in base64_str:
+        base64_str = base64_str.split(",", 1)[1]
+
+    image_content = ImageContent(image_base64=base64_str)
+
+    parts = [f"User Goal: {goal.strip()}"]
+    if session_id:
+        parts.append(f"Session ID: {session_id}")
+    if context:
+        parts.append(f"Context: {context}")
+
+    parts.append("Remember: respond with ONLY the JSON object, nothing else.")
+    user_text = "\n".join(parts)
+
+    response_text = await chat.send_message(
+        UserMessage(text=user_text, file_contents=[image_content])
+    )
+
+    try:
+        if isinstance(response_text, str):
+            raw = response_text.strip()
+        else:
+            raw = str(response_text).strip()
+
+        if raw.startswith("```"):
+
+
+@app.post("/api/navigate/base64", response_model=NavigationAction)
+async def navigate_base64(payload: NavigateBase64Request) -> NavigationAction:
+    """Navigate using a base64-encoded image and JSON payload.
+
+    This is optimized for automated UI-testing loops that prefer JSON-only IO.
+    """
+    # Validate MIME type if provided (must match our supported formats)
+    if payload.mime_type is not None and payload.mime_type not in {
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported image MIME type. Use image/png, image/jpeg, or image/webp.",
+        )
+
+    action = await call_navigation_agent_base64(
+        image_base64=payload.image_base64,
+        mime_type=payload.mime_type,
+        goal=payload.goal,
+        session_id=payload.session_id,
+        context=payload.context,
+    )
+    return action
+
+            raw = raw.strip("`")
+            if raw.lower().startswith("json"):
+                raw = raw[4:].strip()
+
+        data = json.loads(raw)
+        action = NavigationAction.model_validate(data)
+        return action
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "LLM response invalid",
+                "message": str(exc),
+            },
+        ) from exc
+
     user_text = "\n".join(parts)
 
     response_text = await chat.send_message(
