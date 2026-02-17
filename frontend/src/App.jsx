@@ -462,11 +462,53 @@ function App() {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : tab === "context" ? (
               <div className="text-xs" data-testid="output-context-panel">
                 <pre className="max-h-64 overflow-auto rounded-md bg-slate-950 border border-slate-800 px-2 py-2 text-[11px] leading-snug text-slate-200">
                   {buildContextString()}
                 </pre>
+              </div>
+            ) : (
+              <div
+                className="text-xs max-h-64 overflow-auto rounded-md bg-slate-950 border border-slate-800 px-2 py-2 space-y-1"
+                data-testid="output-timeline-panel"
+              >
+                {context.recent_history && context.recent_history.length > 0 ? (
+                  context.recent_history
+                    .slice()
+                    .reverse()
+                    .map((step) => (
+                      <div
+                        key={step.step}
+                        className="flex items-start justify-between gap-3 rounded-md bg-slate-900/80 px-2 py-1.5 border border-slate-800"
+                        data-testid={`timeline-item-${step.step}`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="text-[11px] text-slate-400">
+                            Step {step.step} • {step.action} • {step.status}
+                          </div>
+                          <div className="text-[11px] text-slate-100" data-testid="timeline-target">
+                            {step.target}
+                          </div>
+                          {step.plan && (
+                            <div className="text-[10px] text-slate-500" data-testid="timeline-plan">
+                              {step.plan}
+                            </div>
+                          )}
+                        </div>
+                        <div
+                          className="text-[10px] text-slate-400 whitespace-nowrap"
+                          data-testid="timeline-coords"
+                        >
+                          x:{step.coords?.x} y:{step.coords?.y}
+                        </div>
+                      </div>
+                    ))
+                ) : (
+                  <div className="text-xs text-slate-500" data-testid="timeline-empty-state">
+                    No steps recorded yet. Run the agent to build a timeline.
+                  </div>
+                )}
               </div>
             )}
           </div>
