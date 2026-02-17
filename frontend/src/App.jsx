@@ -297,12 +297,44 @@ function App() {
             data-testid="screenshot-preview-panel"
           >
             {screenshotPreview ? (
-              <img
-                src={screenshotPreview}
-                alt="Screenshot preview"
-                className="h-full w-full object-contain"
-                data-testid="screenshot-preview-image"
-              />
+              <>
+                <img
+                  src={screenshotPreview}
+                  alt="Screenshot preview"
+                  className="h-full w-full object-contain"
+                  data-testid="screenshot-preview-image"
+                />
+                {result?.coords && (
+                  <div
+                    data-testid="coords-overlay"
+                    className="pointer-events-none absolute inset-4 flex items-center justify-center"
+                  >
+                    <div
+                      className="relative w-full h-full border border-sky-500/40 rounded-lg"
+                      style={{ boxSizing: "border-box" }}
+                    >
+                      <div
+                        className="absolute w-3 h-3 -mt-1.5 -ml-1.5 rounded-full bg-sky-400 shadow-[0_0_0_3px_rgba(8,47,73,0.85)]"
+                        style={{
+                          left: `${(result.coords.x / 1000) * 100}%`,
+                          top: `${(result.coords.y / 1000) * 100}%`,
+                        }}
+                      />
+                      <div
+                        className="absolute text-[10px] px-1.5 py-0.5 rounded bg-slate-900/90 border border-sky-500/60 text-sky-100 shadow-md"
+                        style={{
+                          left: `${Math.min((result.coords.x / 1000) * 100 + 1, 95)}%`,
+                          top: `${Math.max((result.coords.y / 1000) * 100 - 5, 0)}%`,
+                          transform: "translate(-50%, -100%)",
+                        }}
+                        data-testid="coords-overlay-label"
+                      >
+                        x:{result.coords.x} y:{result.coords.y}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-xs text-slate-500" data-testid="screenshot-placeholder">
                 Screenshot preview will appear here.
