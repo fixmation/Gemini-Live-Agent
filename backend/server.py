@@ -173,6 +173,8 @@ def detect_mime_type(filename: str) -> str:
 async def navigate(
     screenshot: UploadFile = File(..., description="Screenshot image of the UI"),
     goal: str = Form(..., description="User's navigation goal for this step"),
+    session_id: str | None = Form(None, description="Optional session identifier for the agent loop"),
+    context: str | None = Form(None, description="Optional serialized context or history for better reasoning"),
 ):
     if not goal or not goal.strip():
         raise HTTPException(status_code=400, detail="Goal must be a non-empty string.")
@@ -187,7 +189,7 @@ async def navigate(
             tmp.write(content)
             tmp_path = tmp.name
 
-        action = await call_navigation_agent(tmp_path, mime_type, goal)
+        action = await call_navigation_agent(tmp_path, mime_type, goal, session_id=session_id, context=context)
         return action
     finally:
         try:
