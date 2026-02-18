@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || "";
+const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
 const initialContext = {
   session_id: "",
