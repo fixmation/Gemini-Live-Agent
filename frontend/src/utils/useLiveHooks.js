@@ -17,6 +17,7 @@ export function useLiveAudio() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const clientRef = useRef(null);
   const micRef = useRef(null);
@@ -119,6 +120,7 @@ export function useLiveAudio() {
     isSpeaking,
     response,
     error,
+    reconnecting,
     connect,
     startRecording,
     stopRecording,
@@ -136,6 +138,7 @@ export function useLiveNavigation() {
   const [action, setAction] = useState(null);
   const [error, setError] = useState(null);
   const [goal, setGoal] = useState("");
+  const [reconnecting, setReconnecting] = useState(false);
 
   const clientRef = useRef(null);
   const micRef = useRef(null);
@@ -249,6 +252,7 @@ export function useLiveNavigation() {
     action,
     error,
     goal,
+    reconnecting,
     connect,
     startNavigation,
     stopNavigation,
@@ -265,6 +269,7 @@ export function useLiveStory() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [blocks, setBlocks] = useState([]);
   const [error, setError] = useState(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const clientRef = useRef(null);
   const playerRef = useRef(null);
@@ -297,6 +302,16 @@ export function useLiveStory() {
       clientRef.current.onError = (err) => {
         setError(err);
         setIsGenerating(false);
+      };
+      
+      clientRef.current.onReconnecting = (attempt, delay) => {
+        setReconnecting(true);
+        setError(`Reconnecting (${attempt}/5)...`);
+      };
+      
+      clientRef.current.onClose = () => {
+        setIsConnected(false);
+        setReconnecting(false);
       };
       
       await clientRef.current.connect();
@@ -342,6 +357,7 @@ export function useLiveStory() {
     isGenerating,
     blocks,
     error,
+    reconnecting,
     connect,
     generateStory,
     disconnect,

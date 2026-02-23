@@ -11,38 +11,39 @@ const getWebSocketUrl = (endpoint) => {
 };
 
 /**
- * Live Audio Streaming Client
- * Handles bidirectional audio communication with Gemini Live
+ * Base WebSocket client with reconnection logic
  */
-export class LiveAudioClient {
-  constructor() {
+class BaseWebSocketClient {
+  constructor(endpoint) {
+    this.endpoint = endpoint;
     this.ws = null;
     this.isConnected = false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.reconnectDelay = 1000; // Start with 1 second
+    this.reconnectTimer = null;
+    this.shouldReconnect = true;
     this.onResponse = null;
     this.onError = null;
     this.onClose = null;
+    this.onReconnecting = null;
   }
 
   connect() {
     return new Promise((resolve, reject) => {
-      const url = getWebSocketUrl("/ws/live/audio");
+      const url = getWebSocketUrl(this.endpoint);
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
         this.isConnected = true;
-        console.log("Live audio WebSocket connected");
+        this.reconnectAttempts = 0;
+        this.reconnectDelay = 1000;
+        console.log(`WebSocket connected: ${this.endpoint}`);
         resolve();
       };
 
       this.ws.onmessage = (event) => {
-        try {
-          const response = JSON.parse(event.data);
-          if (this.onResponse) {
-            this.onResponse(response);
-          }
-        } catch (error) {
-          console.error("Failed to parse response:", error);
-        }
+        this.handleMessage(event);
       };
 
       this.ws.onerror = (error) => {
@@ -55,12 +56,71 @@ export class LiveAudioClient {
 
       this.ws.onclose = () => {
         this.isConnected = false;
-        console.log("Live audio WebSocket closed");
+        console.log(`WebSocket closed: ${this.endpoint}`);
+        
         if (this.onClose) {
           this.onClose();
         }
+
+        // Auto-reconnect if enabled
+        if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 8000);
+          
+          if (this.onReconnecting) {
+            this.onReconnecting(this.reconnectAttempts, delay);
+          }
+
+          this.reconnectTimer = setTimeout(() => {
+            console.log(`Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+            this.connect().catch(console.error);
+          }, delay);
+        }
       };
     });
+  }
+
+  handleMessage(event) {
+    try {
+      const response = JSON.parse(event.data);
+      if (this.onResponse) {
+        this.onResponse(response);
+      }
+    } catch (error) {
+      console.error("Failed to parse response:", error);
+    }
+  }
+
+  send(data) {
+    if (this.isConnected && this.ws) {
+      if (typeof data === "string" || data instanceof ArrayBuffer) {
+        this.ws.send(data);
+      } else {
+        this.ws.send(JSON.stringify(data));
+      }
+    }
+  }
+
+  close() {
+    this.shouldReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.isConnected = false;
+  }
+}
+
+/**
+ * Live Audio Streaming Client
+ * Handles bidirectional audio communication with Gemini Live
+ */
+export class LiveAudioClient extends BaseWebSocketClient {
+  constructor() {
+    super("/ws/live/audio");
   }
 
   sendAudio(audioChunk) {
@@ -70,17 +130,7 @@ export class LiveAudioClient {
   }
 
   sendControl(message) {
-    if (this.isConnected && this.ws) {
-      this.ws.send(JSON.stringify(message));
-    }
-  }
-
-  close() {
-    if (this.ws) {
-      this.sendControl({ type: "close" });
-      this.ws.close();
-      this.isConnected = false;
-    }
+    this.send(message);
   }
 }
 
@@ -88,53 +138,24 @@ export class LiveAudioClient {
  * Live Navigation Client
  * Handles voice commands + screen capture for UI navigation
  */
-export class LiveNavigationClient {
+export class LiveNavigationClient extends BaseWebSocketClient {
   constructor() {
-    this.ws = null;
-    this.isConnected = false;
+    super("/ws/live/navigate");
     this.onAction = null;
-    this.onError = null;
-    this.onClose = null;
   }
 
-  connect() {
-    return new Promise((resolve, reject) => {
-      const url = getWebSocketUrl("/ws/live/navigate");
-      this.ws = new WebSocket(url);
-
-      this.ws.onopen = () => {
-        this.isConnected = true;
-        console.log("Live navigation WebSocket connected");
-        resolve();
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const response = JSON.parse(event.data);
-          if (this.onAction) {
-            this.onAction(response);
-          }
-        } catch (error) {
-          console.error("Failed to parse navigation action:", error);
-        }
-      };
-
-      this.ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        if (this.onError) {
-          this.onError(error);
-        }
-        reject(error);
-      };
-
-      this.ws.onclose = () => {
-        this.isConnected = false;
-        console.log("Live navigation WebSocket closed");
-        if (this.onClose) {
-          this.onClose();
-        }
-      };
-    });
+  handleMessage(event) {
+    try {
+      const response = JSON.parse(event.data);
+      if (this.onAction) {
+        this.onAction(response);
+      }
+      if (this.onResponse) {
+        this.onResponse(response);
+      }
+    } catch (error) {
+      console.error("Failed to parse navigation action:", error);
+    }
   }
 
   sendAudio(audioChunk) {
@@ -144,33 +165,17 @@ export class LiveNavigationClient {
   }
 
   sendScreenFrame(imageData) {
-    if (this.isConnected && this.ws) {
-      this.ws.send(
-        JSON.stringify({
-          type: "screen_frame",
-          data: imageData, // base64 encoded
-        })
-      );
-    }
+    this.send({
+      type: "screen_frame",
+      data: imageData,
+    });
   }
 
   setGoal(goal) {
-    if (this.isConnected && this.ws) {
-      this.ws.send(
-        JSON.stringify({
-          type: "set_goal",
-          goal: goal,
-        })
-      );
-    }
-  }
-
-  close() {
-    if (this.ws) {
-      this.ws.send(JSON.stringify({ type: "close" }));
-      this.ws.close();
-      this.isConnected = false;
-    }
+    this.send({
+      type: "set_goal",
+      goal: goal,
+    });
   }
 }
 
@@ -178,76 +183,40 @@ export class LiveNavigationClient {
  * Live Story Generation Client
  * Handles interleaved multimodal story generation
  */
-export class LiveStoryClient {
+export class LiveStoryClient extends BaseWebSocketClient {
   constructor() {
-    this.ws = null;
-    this.isConnected = false;
+    super("/ws/live/story");
     this.onBlock = null;
     this.onComplete = null;
-    this.onError = null;
-    this.onClose = null;
   }
 
-  connect() {
-    return new Promise((resolve, reject) => {
-      const url = getWebSocketUrl("/ws/live/story");
-      this.ws = new WebSocket(url);
+  handleMessage(event) {
+    try {
+      const message = JSON.parse(event.data);
 
-      this.ws.onopen = () => {
-        this.isConnected = true;
-        console.log("Live story WebSocket connected");
-        resolve();
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-
-          if (message.type === "story_block" && this.onBlock) {
-            this.onBlock(message);
-          } else if (message.type === "complete" && this.onComplete) {
-            this.onComplete();
-          } else if (message.type === "error" && this.onError) {
-            this.onError(message.message);
-          }
-        } catch (error) {
-          console.error("Failed to parse story block:", error);
-        }
-      };
-
-      this.ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        if (this.onError) {
-          this.onError(error);
-        }
-        reject(error);
-      };
-
-      this.ws.onclose = () => {
-        this.isConnected = false;
-        console.log("Live story WebSocket closed");
-        if (this.onClose) {
-          this.onClose();
-        }
-      };
-    });
+      if (message.type === "story_block" && this.onBlock) {
+        this.onBlock(message);
+      } else if (message.type === "complete" && this.onComplete) {
+        this.onComplete();
+      } else if (message.type === "error" && this.onError) {
+        this.onError(message.message);
+      }
+      
+      if (this.onResponse) {
+        this.onResponse(message);
+      }
+    } catch (error) {
+      console.error("Failed to parse story block:", error);
+      if (this.onError) {
+        this.onError(error.message);
+      }
+    }
   }
 
   generateStory(prompt, mediaTypes = ["text", "image", "audio"]) {
-    if (this.isConnected && this.ws) {
-      this.ws.send(
-        JSON.stringify({
-          prompt: prompt,
-          media_types: mediaTypes,
-        })
-      );
-    }
-  }
-
-  close() {
-    if (this.ws) {
-      this.ws.close();
-      this.isConnected = false;
-    }
+    this.send({
+      prompt: prompt,
+      media_types: mediaTypes,
+    });
   }
 }
