@@ -1,3 +1,5 @@
+import asyncio
+import base64
 import json
 import os
 import tempfile
@@ -362,3 +364,244 @@ async def navigate(
                 os.remove(tmp_path)
         except Exception:
             pass
+
+
+# ============================
+# GEMINI LIVE API ENDPOINTS
+# ============================
+
+class AudioBuffer:
+    """Thread-safe audio buffer for WebSocket streaming."""
+    
+    def __init__(self, max_size: int = 1000):
+        self.buffer = asyncio.Queue(maxsize=max_size)
+        self.closed = False
+    
+    async def put(self, data: bytes):
+        """Add audio chunk to buffer."""
+        if not self.closed:
+            await self.buffer.put(data)
+    
+    async def get(self):
+        """Get next audio chunk from buffer."""
+        return await self.buffer.get()
+    
+    async def stream(self):
+        """Async generator for consuming buffer."""
+        while not self.closed or not self.buffer.empty():
+            try:
+                chunk = await asyncio.wait_for(self.buffer.get(), timeout=0.1)
+                yield chunk
+            except asyncio.TimeoutError:
+                if self.closed:
+                    break
+    
+    def close(self):
+        """Mark buffer as closed."""
+        self.closed = True
+
+
+@app.websocket("/ws/live/audio")
+async def websocket_live_audio(websocket: WebSocket):
+    """
+    WebSocket endpoint for live audio streaming with Gemini Live API.
+    
+    Client sends: Audio chunks as binary frames (PCM 16kHz mono)
+    Server sends: JSON responses with text/audio from Gemini
+    """
+    if not LIVE_API_AVAILABLE:
+        await websocket.close(code=1003, reason="Gemini Live API not available")
+        return
+    
+    await websocket.accept()
+    
+    audio_buffer = AudioBuffer()
+    live_client = get_live_client()
+    
+    try:
+        # Define callback for Gemini responses
+        async def handle_response(response: dict):
+            """Send Gemini response back to client."""
+            await websocket.send_json(response)
+        
+        # Start receiving audio from client
+        async def receive_audio():
+            try:
+                while True:
+                    data = await websocket.receive()
+                    
+                    if "bytes" in data:
+                        # Audio chunk received
+                        await audio_buffer.put(data["bytes"])
+                    elif "text" in data:
+                        # Control message (e.g., close signal)
+                        msg = json.loads(data["text"])
+                        if msg.get("type") == "close":
+                            audio_buffer.close()
+                            break
+            except WebSocketDisconnect:
+                audio_buffer.close()
+        
+        # Start streaming to Gemini Live
+        async def stream_to_gemini():
+            await live_client.stream_audio_input(
+                audio_chunks=audio_buffer.stream(),
+                callback=lambda resp: asyncio.create_task(handle_response(resp))
+            )
+        
+        # Run both tasks concurrently
+        await asyncio.gather(
+            receive_audio(),
+            stream_to_gemini()
+        )
+    
+    except Exception as e:
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Live audio streaming error: {str(e)}"
+        })
+    finally:
+        await websocket.close()
+
+
+@app.websocket("/ws/live/navigate")
+async def websocket_live_navigate(websocket: WebSocket):
+    """
+    WebSocket endpoint for live UI navigation with voice + screen capture.
+    
+    Client sends:
+    - Audio chunks (voice commands)
+    - Screen capture frames
+    - Control messages
+    
+    Server sends:
+    - Navigation actions (JSON with coords)
+    - Audio responses
+    """
+    if not LIVE_API_AVAILABLE:
+        await websocket.close(code=1003, reason="Gemini Live API not available")
+        return
+    
+    await websocket.accept()
+    
+    audio_buffer = AudioBuffer()
+    screen_buffer = AudioBuffer()  # Reuse for screen frames
+    live_client = get_live_client()
+    
+    navigation_goal = "Navigate the UI based on voice commands"
+    
+    try:
+        async def handle_response(response: dict):
+            """Process navigation response and send to client."""
+            await websocket.send_json(response)
+        
+        async def receive_data():
+            try:
+                while True:
+                    data = await websocket.receive()
+                    
+                    if "bytes" in data:
+                        # Audio chunk (assume audio by default)
+                        await audio_buffer.put(data["bytes"])
+                    elif "text" in data:
+                        msg = json.loads(data["text"])
+                        
+                        if msg.get("type") == "screen_frame":
+                            # Screen capture frame (base64)
+                            frame_data = base64.b64decode(msg["data"])
+                            await screen_buffer.put(frame_data)
+                        elif msg.get("type") == "set_goal":
+                            # Update navigation goal
+                            nonlocal navigation_goal
+                            navigation_goal = msg.get("goal", navigation_goal)
+                        elif msg.get("type") == "close":
+                            audio_buffer.close()
+                            screen_buffer.close()
+                            break
+            except WebSocketDisconnect:
+                audio_buffer.close()
+                screen_buffer.close()
+        
+        async def stream_to_gemini():
+            await live_client.stream_screen_with_voice(
+                audio_chunks=audio_buffer.stream(),
+                screen_chunks=screen_buffer.stream(),
+                goal=navigation_goal,
+                callback=lambda resp: asyncio.create_task(handle_response(resp))
+            )
+        
+        await asyncio.gather(
+            receive_data(),
+            stream_to_gemini()
+        )
+    
+    except Exception as e:
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Live navigation error: {str(e)}"
+        })
+    finally:
+        await websocket.close()
+
+
+@app.websocket("/ws/live/story")
+async def websocket_live_story(websocket: WebSocket):
+    """
+    WebSocket endpoint for live interleaved multimodal story generation.
+    
+    Client sends:
+    - Story prompt
+    - Media type preferences
+    - Story beats
+    
+    Server sends:
+    - Interleaved text/image/audio/video blocks in real-time
+    """
+    if not LIVE_API_AVAILABLE:
+        await websocket.close(code=1003, reason="Gemini Live API not available")
+        return
+    
+    await websocket.accept()
+    
+    live_client = get_live_client()
+    
+    try:
+        # Wait for initial story request
+        data = await websocket.receive_text()
+        request = json.loads(data)
+        
+        prompt = request.get("prompt", "")
+        media_types = request.get("media_types", ["text", "image", "audio"])
+        
+        if not prompt:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Story prompt is required"
+            })
+            await websocket.close()
+            return
+        
+        # Stream story generation
+        async def handle_block(block: dict):
+            """Send each story block to client as it's generated."""
+            await websocket.send_json(block)
+        
+        await live_client.generate_interleaved_story(
+            prompt=prompt,
+            media_types=media_types,
+            callback=lambda block: asyncio.create_task(handle_block(block))
+        )
+        
+        # Send completion signal
+        await websocket.send_json({
+            "type": "complete",
+            "message": "Story generation complete"
+        })
+    
+    except Exception as e:
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Story generation error: {str(e)}"
+        })
+    finally:
+        await websocket.close()

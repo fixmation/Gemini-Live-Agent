@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { LiveAudioPanel, LiveNavigationPanel, LiveStoryPanel } from "./components/LivePanels";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
@@ -44,7 +45,7 @@ function App() {
   const [newStepText, setNewStepText] = useState("");
   const [showExport, setShowExport] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
-  const [mode, setMode] = useState("story"); // story | navigator
+  const [mode, setMode] = useState("story"); // story | navigator | live
   const [storyBrief, setStoryBrief] = useState("Launch a playful teaser for a new productivity app");
   const [storyTone, setStoryTone] = useState("Cinematic + Playful");
   const [storyBeatInput, setStoryBeatInput] = useState("");
@@ -594,6 +595,17 @@ function App() {
               >
                 UI Navigator
               </button>
+              <button
+                type="button"
+                onClick={() => setMode("live")}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium border transition-colors ${
+                  mode === "live"
+                    ? "bg-purple-500 text-white border-purple-400"
+                    : "border-slate-700 text-slate-200 hover:border-purple-400"
+                }`}
+              >
+                🎙️ Live
+              </button>
             </div>
           </div>
         </header>
@@ -604,18 +616,30 @@ function App() {
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Command Panel</p>
                 <h2 className="text-lg sm:text-xl font-semibold">
-                  {mode === "story" ? "Build interleaved stories" : "Orchestrate screen actions"}
+                  {mode === "story" ? "Build interleaved stories" : mode === "navigator" ? "Orchestrate screen actions" : "Live Gemini Agent"}
                 </h2>
               </div>
               <div className="flex items-center gap-2 text-[11px] text-slate-400">
                 <span className="h-2 w-2 rounded-full bg-sky-400 shrink-0" />
                 <span className="text-xs sm:text-[11px] line-clamp-2">
-                  {mode === "story" ? "Gemini interleaves text/image/audio/video" : "Gemini spots UI targets visually"}
+                  {mode === "story" ? "Gemini interleaves text/image/audio/video" : mode === "navigator" ? "Gemini spots UI targets visually" : "Real-time audio & screen streaming"}
                 </span>
               </div>
             </div>
 
-            {mode === "story" ? (
+            {mode === "live" ? (
+              <div className="space-y-4" data-testid="live-mode">
+                <div className="text-sm text-white/80 mb-4">
+                  <p className="mb-2">🚀 <strong>Gemini Live Agent</strong> - Real-time multimodal streaming</p>
+                  <p className="text-xs text-white/60">Choose a Live mode below to interact with Gemini using voice, screen capture, or multimodal story generation.</p>
+                </div>
+                <div className="grid gap-4">
+                  <LiveAudioPanel />
+                  <LiveNavigationPanel />
+                  <LiveStoryPanel />
+                </div>
+              </div>
+            ) : mode === "story" ? (
               <div className="space-y-4" data-testid="story-director">
                 <div className="grid md:grid-cols-2 gap-3">
                   <div className="space-y-2">
