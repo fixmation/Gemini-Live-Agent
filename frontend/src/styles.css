@@ -1,9 +1,33 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 @source "./styles.css";
 
+:root {
+  --grid-color: rgba(148, 163, 184, 0.08);
+  --glow: 0 20px 120px rgba(56, 189, 248, 0.25);
+}
+
 body {
-  background-color: #020617; /* equivalent to bg-slate-950 */
-  color: #f9fafb; /* equivalent to text-slate-50 */
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  background: radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.08), transparent 25%),
+    radial-gradient(circle at 90% 10%, rgba(14, 165, 233, 0.12), transparent 28%),
+    radial-gradient(circle at 30% 80%, rgba(94, 234, 212, 0.12), transparent 28%),
+    #020617;
+  color: #f9fafb;
+  font-family: "Space Grotesk", "Manrope", "Segoe UI", system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+.grid-overlay {
+  background-image: linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.9), transparent 70%);
+}
+
+.glass-surface {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: var(--glow);
 }
