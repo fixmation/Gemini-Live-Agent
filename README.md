@@ -411,10 +411,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🚀 [DEPLOYMENT_PROOF.md](DEPLOYMENT_PROOF.md) - How to verify Google Cloud deployment and gather proof
 - 📝 [BLOG_CONTENT_TEMPLATE.md](BLOG_CONTENT_TEMPLATE.md) - Template for optional #GeminiLiveAgentChallenge content
 
-**⚠️ Before Submitting**:  
-Update the GitHub repository URL with your actual username (replace `yourusername`):
+**⚠️ My Repo Link**:  
+The Gemini Live Agent GitHub repository URL is:
 ```bash
-https://github.com/your-actual-username/gemini-live-agent
+https://github.com/fixmation/Gemini-Live-Agent
 ```
 Make sure the repository is **public** and contains all source code and documentation.
 
