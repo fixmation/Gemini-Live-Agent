@@ -8,7 +8,8 @@ from enum import Enum
 from typing import Literal
 
 from dotenv import load_dotenv
-from emergentintegrations.llm.chat import FileContentWithMimeType, ImageContent, LlmChat, UserMessage
+import google.generativeai as genai
+from google.generativeai.types import content_types
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -16,11 +17,17 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 load_dotenv()
 
-EMERGENT_LLM_KEY = os.getenv("EMERGENT_LLM_KEY")
-if not EMERGENT_LLM_KEY:
-    raise RuntimeError("EMERGENT_LLM_KEY is not set. Please configure it in backend/.env or environment.")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+if not GOOGLE_API_KEY or GOOGLE_API_KEY == "your_google_api_key_here":
+    print("\n⚠️  ERROR: GOOGLE_API_KEY is not configured!")
+    print("Please add your Google API key to backend/.env file:")
+    print("  GOOGLE_API_KEY=your-actual-api-key-here")
+    print("\nYou can get a key at: https://ai.google.dev/")
+    raise RuntimeError("GOOGLE_API_KEY is not set. Please configure it in backend/.env or environment.")
 
-GEMINI_MODEL_NAVIGATION = "gemini-2.5-pro"
+genai.configure(api_key=GOOGLE_API_KEY)
+
+GEMINI_MODEL_NAVIGATION = "gemini-2.0-flash-exp"
 
 
 class ActionEnum(str, Enum):
@@ -168,13 +175,6 @@ You MUST output ONLY a single JSON object with this exact schema and nothing els
   "status": "IN_PROGRESS" | "SUCCESS"
 }
 
-
-@app.get("/api/health")
-async def health() -> dict:
-    """Simple health check endpoint for frontend connectivity tests."""
-    return {"status": "ok", "provider": "gemini", "model": GEMINI_MODEL_NAVIGATION}
-
-
 Rules:
 - Never include any explanatory text, markdown, backticks, or comments outside of the JSON.
 - Do not wrap the JSON in code fences.
@@ -187,23 +187,20 @@ Rules:
 """.strip()
 
 
-def build_chat() -> LlmChat:
-    session_id = f"nav-{uuid.uuid4()}"
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=session_id,
-        system_message=SYSTEM_PROMPT,
-    ).with_model("gemini", GEMINI_MODEL_NAVIGATION)
-    return chat
+@app.get("/api/health")
+async def health() -> dict:
+    """Simple health check endpoint for frontend connectivity tests."""
+    return {"status": "ok", "provider": "gemini", "model": GEMINI_MODEL_NAVIGATION}
 
 
 async def call_navigation_agent(image_path: str, mime_type: str, goal: str, session_id: str | None = None, context: str | None = None) -> NavigationAction:
-    chat = build_chat()
-
-    file_content = FileContentWithMimeType(
-        file_path=image_path,
-        mime_type=mime_type,
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL_NAVIGATION,
+        system_instruction=SYSTEM_PROMPT
     )
+
+    # Upload the image file
+    uploaded_file = genai.upload_file(image_path, mime_type=mime_type)
 
     # Build rich user instruction including optional session and context for better reasoning
     parts = [f"User Goal: {goal.strip()}"]
@@ -213,6 +210,33 @@ async def call_navigation_agent(image_path: str, mime_type: str, goal: str, sess
         parts.append(f"Context: {context}")
 
     parts.append("Remember: respond with ONLY the JSON object, nothing else.")
+    user_text = "\n".join(parts)
+
+    response = await model.generate_content_async([user_text, uploaded_file])
+    response_text = response.text
+
+    try:
+        if isinstance(response_text, str):
+            raw = response_text.strip()
+        else:
+            raw = str(response_text).strip()
+
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.lower().startswith("json"):
+                raw = raw[4:].strip()
+
+        data = json.loads(raw)
+        action = NavigationAction.model_validate(data)
+        return action
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "LLM response invalid",
+                "message": str(exc),
+            },
+        ) from exc
 
 
 async def call_navigation_agent_base64(
@@ -222,14 +246,28 @@ async def call_navigation_agent_base64(
     session_id: str | None = None,
     context: str | None = None,
 ) -> NavigationAction:
-    chat = build_chat()
+    model = genai.GenerativeModel(
+        model_name=GEMINI_MODEL_NAVIGATION,
+        system_instruction=SYSTEM_PROMPT
+    )
 
     # Support optional data URL prefix, but prefer raw base64 for performance
     base64_str = image_base64.strip()
     if base64_str.startswith("data:") and "," in base64_str:
         base64_str = base64_str.split(",", 1)[1]
 
-    image_content = ImageContent(image_base64=base64_str)
+    # Decode base64 to bytes for Gemini API
+    image_bytes = base64.b64decode(base64_str)
+    
+    # Determine MIME type
+    if not mime_type:
+        mime_type = "image/png"  # Default
+
+    # Create image part for Gemini
+    image_part = {
+        "mime_type": mime_type,
+        "data": image_bytes
+    }
 
     parts = [f"User Goal: {goal.strip()}"]
     if session_id:
@@ -240,9 +278,8 @@ async def call_navigation_agent_base64(
     parts.append("Remember: respond with ONLY the JSON object, nothing else.")
     user_text = "\n".join(parts)
 
-    response_text = await chat.send_message(
-        UserMessage(text=user_text, file_contents=[image_content])
-    )
+    response = await model.generate_content_async([user_text, image_part])
+    response_text = response.text
 
     try:
         if isinstance(response_text, str):
@@ -251,6 +288,21 @@ async def call_navigation_agent_base64(
             raw = str(response_text).strip()
 
         if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.lower().startswith("json"):
+                raw = raw[4:].strip()
+
+        data = json.loads(raw)
+        action = NavigationAction.model_validate(data)
+        return action
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "LLM response invalid",
+                "message": str(exc),
+            },
+        ) from exc
 
 
 @app.post("/api/navigate/base64", response_model=NavigationAction)
@@ -278,51 +330,6 @@ async def navigate_base64(payload: NavigateBase64Request) -> NavigationAction:
         context=payload.context,
     )
     return action
-
-            raw = raw.strip("`")
-            if raw.lower().startswith("json"):
-                raw = raw[4:].strip()
-
-        data = json.loads(raw)
-        action = NavigationAction.model_validate(data)
-        return action
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "LLM response invalid",
-                "message": str(exc),
-            },
-        ) from exc
-
-    user_text = "\n".join(parts)
-
-    response_text = await chat.send_message(
-        UserMessage(text=user_text, file_contents=[file_content])
-    )
-
-    try:
-        if isinstance(response_text, str):
-            raw = response_text.strip()
-        else:
-            raw = str(response_text).strip()
-
-        if raw.startswith("```"):
-            raw = raw.strip("`")
-            if raw.lower().startswith("json"):
-                raw = raw[4:].strip()
-
-        data = json.loads(raw)
-        action = NavigationAction.model_validate(data)
-        return action
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "LLM response invalid",
-                "message": str(exc),
-            },
-        ) from exc
 
 
 def detect_mime_type(filename: str) -> str:
@@ -605,3 +612,8 @@ async def websocket_live_story(websocket: WebSocket):
         })
     finally:
         await websocket.close()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

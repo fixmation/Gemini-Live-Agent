@@ -2,6 +2,10 @@
 
 <div align="center">
 
+> **📝 Entry for the Google Gemini Live Agent Challenge on Devpost**
+> 
+> See [DEVPOST_SUBMISSION_CHECKLIST.md](DEVPOST_SUBMISSION_CHECKLIST.md) for submission requirements
+
 **Real-time multimodal AI assistant powered by Google Gemini Live API**
 
 Voice • Vision • Creativity in One Platform
@@ -400,6 +404,22 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+## 🎯 Devpost Submission Resources
+
+**For Judges & Reviewers**:
+- 📋 [DEVPOST_SUBMISSION_CHECKLIST.md](DEVPOST_SUBMISSION_CHECKLIST.md) - Complete guide for all required/optional submissions
+- 🚀 [DEPLOYMENT_PROOF.md](DEPLOYMENT_PROOF.md) - How to verify Google Cloud deployment and gather proof
+- 📝 [BLOG_CONTENT_TEMPLATE.md](BLOG_CONTENT_TEMPLATE.md) - Template for optional #GeminiLiveAgentChallenge content
+
+**⚠️ Before Submitting**:  
+Update the GitHub repository URL with your actual username (replace `yourusername`):
+```bash
+https://github.com/your-actual-username/gemini-live-agent
+```
+Make sure the repository is **public** and contains all source code and documentation.
+
+---
+
 ## 🙏 Acknowledgments
 
 - **Google Gemini Team** for the amazing Live API
@@ -411,7 +431,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-**Project Link**: [https://github.com/yourusername/gemini-live-agent](https://github.com/yourusername/gemini-live-agent)
+**Project Link**: [https://github.com/yourusername/gemini-live-agent](https://github.com/yourusername/gemini-live-agent) *(Update with your username)*
 
 **Devpost**: [https://devpost.com/software/gemini-live-agent](https://devpost.com/software/gemini-live-agent)
 
