@@ -401,10 +401,12 @@ dependencies {
    • End-to-end encryption
    ```
 
-### Step 6: Review & Submit
+### Step 6: Closed Test & Submit
 1. Review all information
-2. Select "Submit"
-3. App enters review queue (typically 24-48 hours)
+2. Set up a **Closed Test Track** in the Play Console (required for new apps).
+3. **You must run a closed test for at least 14 consecutive days** before requesting production review. Invite testers and monitor for issues during this period.
+4. After 14 days, select "Submit for Review" to request production release.
+5. App enters review queue (review time varies, but only after the closed test is complete).
 
 ### Step 7: Monitor Review
 - Check review status daily in console
@@ -539,5 +541,6 @@ Gemini Live Agent Team
 ---
 
 **Status**: Ready for submission ✅  
-**Estimated Review Time**: 24-48 hours  
+**Important**: New apps must complete a 14-day closed test before production review. Only after this period can you submit for review.  
+**Estimated Review Time**: Begins after closed test; review time varies (typically a few days, but may be longer for new accounts).  
 **Revision Date**: February 25, 2026
