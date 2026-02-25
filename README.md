@@ -431,7 +431,6 @@ Make sure the repository is **public** and contains all source code and document
 
 ## 📧 Contact
 
-**Project Link**: [https://github.com/yourusername/gemini-live-agent](https://github.com/yourusername/gemini-live-agent) *(Update with your username)*
 
 **Devpost**: [https://devpost.com/software/gemini-live-agent](https://devpost.com/software/gemini-live-agent)
 

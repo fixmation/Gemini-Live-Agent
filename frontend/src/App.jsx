@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { LiveAudioPanel, LiveNavigationPanel, LiveStoryPanel } from "./components/LivePanels";
+import OnboardingTour from "./components/OnboardingTour";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
@@ -572,7 +573,7 @@ function App() {
             <div className="text-[11px] text-slate-500" data-testid="backend-url-hint">
               {backendUrl ? backendUrl : "Set VITE_BACKEND_URL to connect the navigator."}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mode-switcher">
               <button
                 type="button"
                 onClick={() => setMode("story")}
@@ -642,7 +643,7 @@ function App() {
             ) : mode === "story" ? (
               <div className="space-y-4" data-testid="story-director">
                 <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                  <div className="space-y-2 story-brief-input">
                     <label className="text-xs text-slate-300" htmlFor="story-brief-input">Story brief</label>
                     <textarea
                       id="story-brief-input"
@@ -653,7 +654,7 @@ function App() {
                       placeholder="e.g. Interactive storybook about a UI agent guiding a user"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 story-tone-select">
                     <label className="text-xs text-slate-300" htmlFor="story-tone-input">Tone & pacing</label>
                     <input
                       id="story-tone-input"
@@ -742,7 +743,7 @@ function App() {
                   <button
                     type="button"
                     onClick={handleGenerateStory}
-                    className="inline-flex items-center gap-2 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm hover:bg-sky-400 disabled:opacity-60"
+                    className="generate-story-button inline-flex items-center gap-2 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm hover:bg-sky-400 disabled:opacity-60"
                     disabled={storyLoading}
                   >
                     {storyLoading ? "Weaving..." : "Generate interleaved output"}
@@ -779,7 +780,7 @@ function App() {
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 viewport-settings">
                     <label className="text-xs uppercase tracking-[0.14em] text-slate-400">Viewport</label>
                     <div className="flex items-center gap-2 text-sm">
                       <input
@@ -810,7 +811,7 @@ function App() {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                  <div className="space-y-2 global-goal-input">
                     <label className="text-xs font-medium text-slate-200" htmlFor="global-goal-input">
                       Global goal
                     </label>
@@ -896,7 +897,7 @@ function App() {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                  <div className="space-y-2 screenshot-upload">
                     <label className="text-xs font-medium text-slate-200" htmlFor="screenshot-input">
                       Screenshot
                     </label>
@@ -1245,6 +1246,9 @@ function App() {
           </section>
         </div>
       </div>
+
+      {/* Interactive Onboarding Tour */}
+      <OnboardingTour currentMode={mode} />
     </div>
   );
 }

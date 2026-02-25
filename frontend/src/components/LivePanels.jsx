@@ -49,7 +49,7 @@ export function LiveAudioPanel() {
   };
 
   return (
-    <div className="p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
+    <div className="live-audio-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
       <h3 className="text-xl font-semibold mb-4 text-white">🎙️ Live Voice Conversation</h3>
       
       {error && (
@@ -172,7 +172,7 @@ export function LiveNavigationPanel() {
 
 
   return (
-    <div className="p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
+    <div className="live-navigation-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
       <h3 className="text-xl font-semibold mb-4 text-white">🧭 Live UI Navigator</h3>
       
       {error && (
@@ -331,7 +331,7 @@ export function LiveStoryPanel() {
   };
 
   return (
-    <div className="p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
+    <div className="live-story-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
       <h3 className="text-xl font-semibold mb-4 text-white">📖 Live Story Director</h3>
       
       {error && (
