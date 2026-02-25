@@ -68,6 +68,12 @@ export function OnboardingTour({ currentMode }) {
           content: 'Click here to let Gemini create your multimodal story with text, images, and audio!',
           placement: 'top',
         },
+        {
+          target: '.output-stream-section',
+          title: '📖 Interleaved narrative',
+          content: 'View your story as it unfolds in real-time, with text, images, and audio woven together into a single multimodal sequence.',
+          placement: 'top',
+        },
       ];
     }
 
@@ -91,6 +97,18 @@ export function OnboardingTour({ currentMode }) {
           title: '📐 Viewport Size',
           content: 'Set the resolution of your screenshot for accurate coordinate mapping.',
           placement: 'left',
+        },
+        {
+          target: '.output-stream-section',
+          title: '📡 Output Stream',
+          content: 'Watch real-time interleaved narrative and UI actions as Gemini generates them. This shows how your prompt is orchestrated into executable steps.',
+          placement: 'top',
+        },
+        {
+          target: '.context-export-section',
+          title: '� Save & Share Your Work',
+          content: 'Export everything you\'ve done as JSON—your inputs, goals, screenshots, and all generated steps. Perfect for saving progress, sharing with teammates, or importing into automation tools. Click "Show JSON" to view or copy it.',
+          placement: 'top',
         },
       ];
     }

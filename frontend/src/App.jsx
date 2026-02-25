@@ -1022,7 +1022,7 @@ function App() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3 items-start">
-          <section className="glass-surface rounded-2xl p-3 sm:p-5 space-y-4 lg:col-span-2">
+          <section className="glass-surface rounded-2xl p-3 sm:p-5 space-y-4 lg:col-span-2 output-stream-section">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Output Stream</p>
@@ -1146,7 +1146,7 @@ function App() {
             </div>
           </section>
 
-          <section className="glass-surface rounded-2xl p-3 sm:p-5 space-y-4">
+          <section className="glass-surface rounded-2xl p-3 sm:p-5 space-y-4 context-export-section">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-slate-400">Context & Export</p>
