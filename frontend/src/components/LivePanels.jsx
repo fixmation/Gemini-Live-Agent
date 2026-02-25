@@ -49,7 +49,7 @@ export function LiveAudioPanel() {
   };
 
   return (
-    <div className="live-audio-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
+    <div className="live-audio-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center text-center">
       <h3 className="text-xl font-semibold mb-4 text-white">🎙️ Live Voice Conversation</h3>
       
       {error && (
@@ -58,7 +58,7 @@ export function LiveAudioPanel() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 justify-center">
         {!isConnected ? (
           <button
             onClick={handleConnect}
@@ -89,21 +89,21 @@ export function LiveAudioPanel() {
       </div>
 
       {/* Status indicators */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 justify-center">
         <ConnectionIndicator status={isConnected ? "connected" : "disconnected"} />
         <VoiceActivityIndicator isActive={isRecording} isSpeaking={isSpeaking} />
       </div>
 
       {/* Audio visualizer */}
       {isRecording && (
-        <div className="mb-4">
+        <div className="mb-4 flex justify-center">
           <AudioVisualizer isActive={isRecording} />
         </div>
       )}
 
       {/* Response display */}
       {response && (
-        <div className="p-4 bg-black/20 rounded-lg border border-white/10 max-h-60 overflow-y-auto">
+        <div className="p-4 bg-black/20 rounded-lg border border-white/10 max-h-60 overflow-y-auto text-center">
           <h4 className="text-sm font-semibold text-white/60 mb-2">Latest Response:</h4>
           <div className="text-white space-y-2">
             {response.parts?.map((part, idx) => (
@@ -172,7 +172,7 @@ export function LiveNavigationPanel() {
 
 
   return (
-    <div className="live-navigation-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
+    <div className="live-navigation-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center text-center">
       <h3 className="text-xl font-semibold mb-4 text-white">🧭 Live UI Navigator</h3>
       
       {error && (
@@ -182,7 +182,7 @@ export function LiveNavigationPanel() {
       )}
 
       {/* Goal input */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col items-center">
         <label className="block text-sm font-medium text-white/80 mb-2">
           Navigation Goal:
         </label>
@@ -196,7 +196,7 @@ export function LiveNavigationPanel() {
         />
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 justify-center">
         {!isConnected ? (
           <button
             onClick={handleConnect}
@@ -228,7 +228,7 @@ export function LiveNavigationPanel() {
       </div>
 
       {/* Status indicators */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 justify-center">
         <ConnectionIndicator status={isConnected ? "connected" : "disconnected"} />
         {isRecording && (
           <div className="flex items-center gap-2 px-3 py-2 bg-red-900/30 rounded-lg border border-red-500/30 text-xs text-red-300">
@@ -246,7 +246,7 @@ export function LiveNavigationPanel() {
 
       {/* Current goal */}
       {goal && (
-        <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-center">
           <p className="text-xs text-blue-300 font-medium">Current Goal:</p>
           <p className="text-white text-sm mt-1">{goal}</p>
         </div>
@@ -254,7 +254,7 @@ export function LiveNavigationPanel() {
 
       {/* Action display */}
       {action && (
-        <div className="p-4 bg-black/20 rounded-lg border border-white/10 max-h-60 overflow-y-auto">
+        <div className="p-4 bg-black/20 rounded-lg border border-white/10 max-h-60 overflow-y-auto text-center">
           <h4 className="text-sm font-semibold text-white/60 mb-2">Recommended Action:</h4>
           <div className="text-white space-y-2">
             {action.parts?.map((part, idx) => (
@@ -331,7 +331,7 @@ export function LiveStoryPanel() {
   };
 
   return (
-    <div className="live-story-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl">
+    <div className="live-story-panel p-6 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center text-center">
       <h3 className="text-xl font-semibold mb-4 text-white">📖 Live Story Director</h3>
       
       {error && (
@@ -341,7 +341,7 @@ export function LiveStoryPanel() {
       )}
 
       {/* Prompt input */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col items-center">
         <label className="block text-sm font-medium text-white/80 mb-2">
           Story Prompt:
         </label>
@@ -379,7 +379,7 @@ export function LiveStoryPanel() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 justify-center">
         {!isConnected ? (
           <button
             onClick={handleConnect}
@@ -407,7 +407,7 @@ export function LiveStoryPanel() {
       </div>
 
       {/* Status indicator */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 justify-center">
         <ConnectionIndicator status={isConnected ? "connected" : "disconnected"} />
         {isGenerating && (
           <div className="flex items-center gap-2 px-3 py-2 bg-purple-900/30 rounded-lg border border-purple-500/30 text-xs text-purple-300">
@@ -419,7 +419,7 @@ export function LiveStoryPanel() {
 
       {/* Story blocks display */}
       {blocks.length > 0 && (
-        <div className="space-y-4 max-h-96 overflow-y-auto p-4 bg-black/20 rounded-lg border border-white/10">
+        <div className="space-y-4 max-h-96 overflow-y-auto p-4 bg-black/20 rounded-lg border border-white/10 text-center">
           <h4 className="text-sm font-semibold text-white/60 sticky top-0 bg-black/40 py-2">
             Story Blocks ({blocks.length}):
           </h4>

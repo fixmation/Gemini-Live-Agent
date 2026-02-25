@@ -45,6 +45,12 @@ export function OnboardingTour({ currentMode }) {
         content: 'This is a real-time AI assistant powered by Google\'s Gemini Live API. Switch between three powerful modes here.',
         placement: 'bottom',
       },
+      {
+        target: '.output-timeline-panel',
+        title: '🪜 What do "Step 1", "Step 2" mean?',
+        content: 'Each "Step" in the timeline represents a single action or decision made by the AI as it works toward your goal. As you interact with the app, more steps will appear, showing the sequence of actions taken. If you only see "Step 1", it means only one action has been performed so far. This helps you track progress and understand how the agent is working.',
+        placement: 'top',
+      },
     ];
 
     if (currentMode === 'story') {

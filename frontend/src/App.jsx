@@ -125,7 +125,7 @@ function App() {
 
     const check = async () => {
       try {
-        const res = await fetch(`${backendUrl}/health`, { method: "GET" });
+        const res = await fetch(`${backendUrl}/api/health`, { method: "GET" });
         if (cancelled) return;
         if (!res.ok) {
           setBackendHealth("error");
