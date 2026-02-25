@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * Lightweight Interactive Onboarding Tour Component
@@ -10,6 +10,20 @@ export function OnboardingTour({ currentMode }) {
   const [hasSeenTour, setHasSeenTour] = useState(false);
   const [targetElement, setTargetElement] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [scrollTick, setScrollTick] = useState(0);
+
+  // Re-calculate positions on scroll and resize
+  useEffect(() => {
+    if (!isActive) return;
+    const handleUpdate = () => setScrollTick(prev => prev + 1);
+    window.addEventListener('scroll', handleUpdate);
+    window.addEventListener('resize', handleUpdate);
+    return () => {
+      window.removeEventListener('scroll', handleUpdate);
+      window.removeEventListener('resize', handleUpdate);
+    };
+  }, [isActive]);
 
   // Check if user has seen the tour before
   useEffect(() => {
@@ -109,8 +123,9 @@ export function OnboardingTour({ currentMode }) {
   };
 
   const steps = getSteps();
+  const lastScrolledStep = useRef(-1);
 
-  // Update target element and position when step changes
+  // Update target element and position when step changes or window scrolls/resizes
   useEffect(() => {
     if (!isActive || currentStep >= steps.length) return;
 
@@ -120,41 +135,77 @@ export function OnboardingTour({ currentMode }) {
     if (element) {
       setTargetElement(element);
       
-      // Calculate tooltip position
-      const rect = element.getBoundingClientRect();
-      const scrollY = window.scrollY;
-      const scrollX = window.scrollX;
-      
-      let top, left;
-      
-      switch (step.placement) {
-        case 'bottom':
-          top = rect.bottom + scrollY + 20;
-          left = rect.left + scrollX + rect.width / 2;
-          break;
-        case 'top':
-          top = rect.top + scrollY - 20;
-          left = rect.left + scrollX + rect.width / 2;
-          break;
-        case 'right':
-          top = rect.top + scrollY + rect.height / 2;
-          left = rect.right + scrollX + 20;
-          break;
-        case 'left':
-          top = rect.top + scrollY + rect.height / 2;
-          left = rect.left + scrollX - 20;
-          break;
-        default:
-          top = rect.bottom + scrollY + 20;
-          left = rect.left + scrollX + rect.width / 2;
+      // Scroll element into view only when the step changes
+      if (lastScrolledStep.current !== currentStep) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        lastScrolledStep.current = currentStep;
       }
       
-      setTooltipPosition({ top, left });
-      
-      // Scroll element into view
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Calculate position (Viewport-relative for fixed elements)
+      const calculatePosition = () => {
+        const rect = element.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const isMobile = viewportWidth < 640;
+        const edgePadding = 16;
+        const gap = isMobile ? 12 : 16;
+        const estimatedHeight = isMobile ? 260 : 220; 
+        const tooltipWidth = isMobile ? Math.min(viewportWidth - 32, 320) : 384;
+
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const spaceRight = viewportWidth - rect.right;
+        const spaceLeft = rect.left;
+
+        let top, left;
+
+        // Mobile Strategy: Always vertical (top or bottom) to avoid side overflow
+        const forceVertical = isMobile || ['top', 'bottom', 'auto'].includes(step.placement);
+
+        if (forceVertical) {
+          if (spaceBelow >= spaceAbove || spaceBelow > estimatedHeight) {
+            top = rect.bottom + gap;
+          } else {
+            top = rect.top - estimatedHeight - gap;
+          }
+          // Center horizontally and clamp
+          left = Math.max(edgePadding + tooltipWidth / 2, Math.min(rect.left + rect.width / 2, viewportWidth - edgePadding - tooltipWidth / 2));
+        } else {
+          // Desktop specific side placement logic
+          if (step.placement === 'right' && spaceRight >= tooltipWidth + gap + edgePadding) {
+            top = Math.max(edgePadding, rect.top);
+            left = rect.right + gap + tooltipWidth / 2;
+          } else if (step.placement === 'left' && spaceLeft >= tooltipWidth + gap + edgePadding) {
+            top = Math.max(edgePadding, rect.top);
+            left = rect.left - gap - tooltipWidth / 2;
+          } else {
+            if (spaceBelow >= spaceAbove) {
+              top = rect.bottom + gap;
+            } else {
+              top = rect.top - estimatedHeight - gap;
+            }
+            left = Math.max(edgePadding + tooltipWidth / 2, Math.min(rect.left + rect.width / 2, viewportWidth - edgePadding - tooltipWidth / 2));
+          }
+        }
+
+        // Final safety clamp to viewport bounds
+        if (top < edgePadding) top = edgePadding;
+        const maxTop = viewportHeight - estimatedHeight - edgePadding;
+        if (top > maxTop) top = Math.max(edgePadding, maxTop);
+
+        setTooltipPosition({ top, left });
+        setTooltipVisible(true);
+      };
+
+      // Small delay on first load of a step to account for scrolling animations
+      const timer = setTimeout(calculatePosition, lastScrolledStep.current === currentStep ? 50 : 350);
+      return () => clearTimeout(timer);
     }
-  }, [currentStep, isActive, steps]);
+    else {
+      setTargetElement(null);
+      setTooltipVisible(false);
+    }
+  }, [currentStep, isActive, steps, scrollTick]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -229,37 +280,73 @@ export function OnboardingTour({ currentMode }) {
 
   const step = steps[currentStep];
 
+  // If we are not ready to show or just transitioned, render nothing to avoid blocking
+  if (!tooltipVisible || !targetElement) {
+    return (
+      <div className="fixed inset-0 z-40 bg-black/20 animate-pulse pointer-events-none flex items-center justify-center">
+        <div className="bg-white px-4 py-2 rounded-lg shadow-xl text-xs font-semibold text-indigo-600">
+          Loading tour step...
+        </div>
+      </div>
+    );
+  }
+
+  const rect = targetElement.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
   return (
     <>
-      {/* Overlay */}
-      <div 
-        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
+      {/* Spotlight ring - now fixed and viewport relative */}
+      <div
+        className="fixed z-40 pointer-events-none"
+        style={{
+          top: rect.top - 8,
+          left: rect.left - 8,
+          width: rect.width + 16,
+          height: rect.height + 16,
+          boxShadow: '0 0 0 4px rgba(99, 102, 241, 0.8)',
+          borderRadius: '12px',
+          transition: 'all 0.1s ease-out',
+        }}
+      />
+      
+      {/* Surround with four separate dimming overlays to leave center reachable */}
+      {/* Top overlay */}
+      <div
         onClick={handleSkip}
+        className="fixed bg-black/75 z-39"
+        style={{ top: 0, left: 0, width: '100%', height: rect.top, cursor: 'default' }}
+      />
+      {/* Bottom overlay */}
+      <div
+        onClick={handleSkip}
+        className="fixed bg-black/75 z-39"
+        style={{ top: rect.bottom, left: 0, width: '100%', height: Math.max(0, vh - rect.bottom), cursor: 'default' }}
+      />
+      {/* Left overlay */}
+      <div
+        onClick={handleSkip}
+        className="fixed bg-black/75 z-39"
+        style={{ top: rect.top, left: 0, width: rect.left, height: rect.height, cursor: 'default' }}
+      />
+      {/* Right overlay */}
+      <div
+        onClick={handleSkip}
+        className="fixed bg-black/75 z-39"
+        style={{ top: rect.top, left: rect.right, width: Math.max(0, vw - rect.right), height: rect.height, cursor: 'default' }}
       />
 
-      {/* Spotlight on target element */}
-      {targetElement && (
-        <div
-          className="fixed z-40 pointer-events-none"
-          style={{
-            top: targetElement.getBoundingClientRect().top + window.scrollY - 8,
-            left: targetElement.getBoundingClientRect().left + window.scrollX - 8,
-            width: targetElement.getBoundingClientRect().width + 16,
-            height: targetElement.getBoundingClientRect().height + 16,
-            boxShadow: '0 0 0 4px rgba(79, 70, 229, 0.5), 0 0 0 9999px rgba(0, 0, 0, 0.6)',
-            borderRadius: '12px',
-            transition: 'all 0.3s ease',
-          }}
-        />
-      )}
-
-      {/* Tooltip */}
+      {/* Tooltip component */}
       <div
-        className="fixed z-50 bg-white rounded-xl shadow-2xl p-6 max-w-sm"
+        className="fixed z-50 bg-white rounded-xl shadow-2xl p-4 sm:p-6 w-[calc(100vw-2rem)] sm:w-96 max-w-md"
         style={{
           top: tooltipPosition.top,
           left: tooltipPosition.left,
           transform: 'translate(-50%, 0)',
+          maxHeight: 'calc(100vh - 2rem)',
+          overflowY: 'auto',
+          transition: 'all 0.3s ease-out',
         }}
       >
         {/* Progress indicator */}

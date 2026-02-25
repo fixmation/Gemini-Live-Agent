@@ -10,7 +10,7 @@ from typing import Literal
 from dotenv import load_dotenv
 import google.generativeai as genai
 from google.generativeai.types import content_types
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
