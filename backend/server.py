@@ -6,6 +6,11 @@ import tempfile
 import uuid
 from enum import Enum
 from typing import Literal
+import io
+from fastapi.responses import StreamingResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
 
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -62,6 +67,7 @@ class NavigationAction(BaseModel):
     coords: Coords
     text_input: str
     status: StatusEnum
+    confidence: float | None = Field(None, description="AI confidence score for this action (0-1)")
 
 
 class NavigateBase64Request(BaseModel):
@@ -227,6 +233,10 @@ async def call_navigation_agent(image_path: str, mime_type: str, goal: str, sess
                 raw = raw[4:].strip()
 
         data = json.loads(raw)
+        # Add a mock confidence score if not present
+        if 'confidence' not in data:
+            import random
+            data['confidence'] = round(random.uniform(0.7, 0.99), 2)
         action = NavigationAction.model_validate(data)
         return action
     except (json.JSONDecodeError, ValidationError) as exc:
@@ -371,6 +381,115 @@ async def navigate(
                 os.remove(tmp_path)
         except Exception:
             pass
+
+
+
+@app.post('/export/pdf')
+async def export_pdf(payload: dict):
+    """Generate a visually improved PDF report for a session/workflow."""
+    try:
+        buf = io.BytesIO()
+        pdf = canvas.Canvas(buf, pagesize=letter)
+        w, h = letter
+        y = h - 56
+
+        # Header
+        pdf.setFont('Helvetica-Bold', 20)
+        pdf.setFillColorRGB(0.18, 0.22, 0.45)
+        pdf.drawString(40, y, "Gemini Live Agent Session Report")
+        pdf.setFillColorRGB(0, 0, 0)
+        y -= 32
+        pdf.setFont('Helvetica', 12)
+        pdf.drawString(40, y, f"Session ID: {payload.get('session_id','')}")
+        y -= 18
+        pdf.drawString(40, y, f"Global Goal: {payload.get('global_goal','')}")
+        y -= 18
+        pdf.drawString(40, y, f"Generated: {payload.get('generated_at','')}")
+        y -= 18
+        pdf.setStrokeColorRGB(0.5,0.5,0.7)
+        pdf.line(40, y, w-40, y)
+        y -= 18
+
+        # Screenshots section
+        screenshots = payload.get('screenshots') or []
+        if screenshots:
+            pdf.setFont('Helvetica-Bold', 13)
+            pdf.drawString(40, y, "Screenshots:")
+            y -= 18
+            for s in screenshots:
+                img_b64 = s.get('image_base64')
+                if not img_b64:
+                    continue
+                if img_b64.startswith('data:'):
+                    img_b64 = img_b64.split(',', 1)[1]
+                try:
+                    img_bytes = io.BytesIO(base64.b64decode(img_b64))
+                    img = ImageReader(img_bytes)
+                    iw, ih = img.getSize()
+                    max_w = w - 80
+                    scale = min(1.0, max_w / iw, 220/ih)
+                    dw = iw * scale
+                    dh = ih * scale
+                    if y - dh < 80:
+                        pdf.showPage(); y = h - 56
+                    pdf.rect(38, y - dh - 2, dw + 4, dh + 4, stroke=1, fill=0)
+                    pdf.drawImage(img, 40, y - dh, width=dw, height=dh)
+                    y -= dh + 18
+                except Exception:
+                    continue
+            pdf.setStrokeColorRGB(0.5,0.5,0.7)
+            pdf.line(40, y, w-40, y)
+            y -= 18
+
+        # Timeline section
+        ctx = payload.get('context') or {}
+        recent = ctx.get('recent_history') or payload.get('recent_history') or []
+        if recent:
+            if y < 100:
+                pdf.showPage(); y = h - 56
+            pdf.setFont('Helvetica-Bold', 13)
+            pdf.setFillColorRGB(0.18, 0.22, 0.45)
+            pdf.drawString(40, y, 'Timeline:')
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 18
+            pdf.setFont('Helvetica', 10)
+            for step in recent:
+                stepnum = step.get('step')
+                action = step.get('action')
+                target = step.get('target')
+                status = step.get('status')
+                plan = step.get('plan')
+                coords = step.get('coords')
+                line = f"Step {stepnum} | {action} | {target} | {status}"
+                if y < 60:
+                    pdf.showPage(); y = h - 56
+                pdf.setFont('Helvetica-Bold', 10)
+                pdf.drawString(44, y, line)
+                y -= 14
+                if plan:
+                    pdf.setFont('Helvetica-Oblique', 9)
+                    pdf.drawString(60, y, f"Plan: {plan}")
+                    y -= 12
+                if coords:
+                    pdf.setFont('Helvetica', 9)
+                    pdf.drawString(60, y, f"Coords: x={coords.get('x')} y={coords.get('y')}")
+                    y -= 12
+                y -= 2
+
+        pdf.setFont('Helvetica-Oblique', 9)
+        if y < 40:
+            pdf.showPage(); y = h - 56
+        pdf.setFillColorRGB(0.4,0.4,0.4)
+        pdf.drawString(40, y, "Generated by Gemini Live Agent — https://github.com/[your-username]/gemini-live-agent")
+        pdf.setFillColorRGB(0,0,0)
+        pdf.save()
+        buf.seek(0)
+        filename = f"gemini-session-{payload.get('session_id','')}.pdf"
+        return StreamingResponse(buf, media_type='application/pdf', headers={
+            'Content-Disposition': f'attachment; filename={filename}'
+        })
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ============================

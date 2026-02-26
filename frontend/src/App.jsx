@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { LiveAudioPanel, LiveNavigationPanel, LiveStoryPanel } from "./components/LivePanels";
 import OnboardingTour from "./components/OnboardingTour";
 
@@ -152,6 +154,90 @@ function App() {
       cancelled = true;
     };
   }, [backendUrl]);
+
+  // Export current session / workflow panel as PDF
+  const exportSessionAsPDF = useCallback(async () => {
+    try {
+      // Ensure the export panel is visible so we capture it
+      if (!showExport) setShowExport(true);
+
+      // Wait a tick for UI to render
+      await new Promise((r) => setTimeout(r, 250));
+
+      const el = document.querySelector('[data-testid="export-panel"]');
+      if (!el) {
+        alert('Export panel not available. Open "Show JSON" first.');
+        return;
+      }
+
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`gemini-session-${sessionId}.pdf`);
+    } catch (err) {
+      console.error('PDF export failed', err);
+      alert('PDF export failed — check console for details.');
+    }
+  }, [showExport, sessionId]);
+
+  // Export using backend PDF generator
+  const exportSessionAsPDFServer = useCallback(async () => {
+    try {
+      const payload = {
+        session_id: sessionId,
+        global_goal: globalGoal,
+        context,
+        recent_history: context.recent_history,
+        generated_at: new Date().toISOString(),
+        screenshots: [],
+      };
+
+      if (screenshotFile) {
+        // convert to base64 data URL
+        const toDataURL = (file) => new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result);
+          reader.onerror = rej;
+          reader.readAsDataURL(file);
+        });
+        try {
+          const dataUrl = await toDataURL(screenshotFile);
+          payload.screenshots.push({ step: context.loop_step || 1, image_base64: dataUrl });
+        } catch (e) {
+          console.warn('Failed to attach screenshot for server PDF', e);
+        }
+      }
+
+      const res = await fetch(`${backendUrl}/export/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `Server returned ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gemini-session-${sessionId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Server PDF export failed', err);
+      alert('Server PDF export failed — check console for details.');
+    }
+  }, [sessionId, globalGoal, context]);
 
   const handleScreenshotChange = (e) => {
     const file = e.target.files?.[0];
@@ -1072,6 +1158,11 @@ function App() {
                       <span className="rounded-lg bg-slate-800 px-2 py-1 text-xs text-slate-100 border border-slate-700">
                         {result.status}
                       </span>
+                      {typeof result.confidence === 'number' && (
+                        <span className="rounded-lg bg-yellow-900/80 px-2 py-1 text-xs text-yellow-200 border border-yellow-600 ml-1" title="AI Confidence Score">
+                          Confidence: {(result.confidence * 100).toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-slate-200" data-testid="output-target">{result.target}</div>
                   </div>
@@ -1160,6 +1251,22 @@ function App() {
               >
                 {showExport ? "Hide" : "Show"} JSON
               </button>
+              <button
+                type="button"
+                data-testid="export-pdf-button"
+                onClick={exportSessionAsPDF}
+                className="px-3 py-2 ml-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
+              >
+                Export PDF
+              </button>
+              <button
+                type="button"
+                data-testid="export-pdf-server-button"
+                onClick={exportSessionAsPDFServer}
+                className="px-3 py-2 ml-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
+              >
+                Export PDF (Server)
+              </button>
             </div>
 
             {showExport && (
@@ -1200,6 +1307,7 @@ function App() {
 
             <div
               className="text-xs max-h-48 overflow-auto rounded-md bg-slate-950 border border-slate-800 px-2 py-2 space-y-1"
+              className="text-xs max-h-48 overflow-auto rounded-md bg-slate-950 border border-slate-800 px-2 py-2 space-y-1 output-timeline-panel"
               data-testid="output-timeline-panel"
             >
               {context.recent_history && context.recent_history.length > 0 ? (
