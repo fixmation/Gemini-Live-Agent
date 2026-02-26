@@ -31,6 +31,39 @@ Built for the **Google Gemini Live Agent Challenge**, this project showcases adv
 
 ---
 
+## 🏆 Devpost Judging Criteria Alignment
+
+This submission directly addresses the three judging criteria:
+
+### 🎨 Innovation & Multimodal User Experience (40%)
+- **Breaks the "text box" paradigm**: Users interact via voice commands, screen capture, and real-time audio responses—not static text input/output
+- **True "See, Hear, Speak" experience**: 
+  - **See**: Screen Capture API integrates visual context into AI reasoning
+  - **Hear**: Real-time audio responses with streaming synthesis
+  - **Speak**: Bidirectional voice streaming with Voice Activity Detection
+- **Seamless & Live**: No turn-taking delays—Gemini responds while user is still speaking
+- **Contextual awareness**: Screen content directly informs navigation recommendations; audio context shapes responses
+
+### 🔧 Technical Implementation & Agent Architecture (30%)
+- **Effective GenAI SDK usage**: [Backend uses google-genai](backend/requirements.txt) with streaming, async/await, and optimal config
+- **Robust Google Cloud deployment**: [Cloud Run scripts](scripts/deploy_backend_cloud_run.sh) with auto-scaling and CI/CD
+- **Sound agent logic**: [Grounding mechanisms](TECHNICAL_SAFEGUARDS.md) prevent hallucinations via context injection
+- **Graceful error handling**: [WebSocket boundaries](backend/server.py) with exponential backoff reconnection
+- **Hallucination prevention**: Screenshot validation + response coordinate checking
+- **Evidence of grounding**: System prompts anchor responses to observed visual/audio context
+
+→ See [TECHNICAL_SAFEGUARDS.md](TECHNICAL_SAFEGUARDS.md) for detailed safety mechanisms
+
+### 🎬 Demo & Presentation (30%)
+- **Clear problem/solution statement**: Text below defines real-world need + innovative solution
+- **Architecture diagram**: [ASCII diagram included](#-architecture)
+- **Visual Cloud deployment proof**: [Deployment scripts + proof guide](DEPLOYMENT_SCREENSHOTS.md)
+- **Working software demo**: [Video recording guide](VIDEO_RECORDING_GUIDE.md) with 5-10 min script showing all three modes
+
+→ See [VIDEO_RECORDING_GUIDE.md](VIDEO_RECORDING_GUIDE.md) for step-by-step demo instructions
+
+---
+
 ## ✨ Features
 
 ### Phase 1: Core Infrastructure ✅
@@ -408,7 +441,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **For Judges & Reviewers**:
 - 📋 [DEVPOST_SUBMISSION_CHECKLIST.md](DEVPOST_SUBMISSION_CHECKLIST.md) - Complete guide for all required/optional submissions
-- 🚀 [DEPLOYMENT_PROOF.md](DEPLOYMENT_PROOF.md) - How to verify Google Cloud deployment and gather proof
+- � [TECHNICAL_SAFEGUARDS.md](TECHNICAL_SAFEGUARDS.md) - **NEW**: Detailed explanation of error handling, grounding mechanisms, and hallucination prevention
+- 🎬 [VIDEO_RECORDING_GUIDE.md](VIDEO_RECORDING_GUIDE.md) - **NEW**: Step-by-step guide to create a compelling 5-10 minute demo video (with timestamps and narration script)
+- 📸 [DEPLOYMENT_SCREENSHOTS.md](DEPLOYMENT_SCREENSHOTS.md) - **NEW**: Instructions to gather and present Google Cloud deployment proof
+- �🚀 [DEPLOYMENT_PROOF.md](DEPLOYMENT_PROOF.md) - How to verify Google Cloud deployment and gather proof
 - 📝 [BLOG_CONTENT_TEMPLATE.md](BLOG_CONTENT_TEMPLATE.md) - Template for optional #GeminiLiveAgentChallenge content
 
 **⚠️ My Repo Link**:  

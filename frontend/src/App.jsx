@@ -1,33 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import React, { useCallback, useEffect, useState } from "react";
+import StreamingIndicator from "./components/StreamingIndicator";
+import ConfidenceIndicator from "./components/ConfidenceIndicator";
+import ConversationContext from "./components/ConversationContext";
+import ScreenCaptureVisualization from "./components/ScreenCaptureVisualization";
+import ResponseDisplay from "./components/ResponseDisplay";
 import { LiveAudioPanel, LiveNavigationPanel, LiveStoryPanel } from "./components/LivePanels";
-import OnboardingTour from "./components/OnboardingTour";
+import "./styles/immersive-layout.css";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
-
-const initialContext = {
-  session_id: "",
-  loop_step: 1,
-  global_goal: "",
-  current_subgoal: "",
-  last_screenshot: null,
-  last_action: null,
-  recent_history: [],
-  environment: {
-    browser: "chromium",
-    os: "linux",
-    locale: "en-US",
-    test_profile: "default",
-  },
-  error_state: {
-    has_error: false,
-    last_error_message: null,
-    retry_count_for_current_goal: 0,
-  },
-};
-
-const STORAGE_KEY = "ui-navigator-state-v1";
 
 function App() {
   const [sessionId, setSessionId] = useState(() => crypto.randomUUID());

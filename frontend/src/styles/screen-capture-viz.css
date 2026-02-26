@@ -1,0 +1,256 @@
+/* ============================================================================
+ * screen-capture-viz.css
+ * Styles for screen capture visualization with highlighting
+ * ============================================================================ */
+
+.screen-capture-viz {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Screen Container */
+.screen-container {
+  position: relative;
+  display: inline-block;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  border: 2px solid #e5e7eb;
+  background-color: #f3f4f6;
+}
+
+.screen-image-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.screen-image {
+  display: block;
+  border-radius: 10px;
+}
+
+/* Placeholder State */
+.screen-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 40px;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border-radius: 10px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  opacity: 0.6;
+}
+
+.placeholder-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.placeholder-hint {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* Crosshair Cursor */
+.crosshair {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.crosshair-h,
+.crosshair-v {
+  position: absolute;
+  background-color: #ef4444;
+  top: 50%;
+  left: 50%;
+}
+
+.crosshair-h {
+  width: 30px;
+  height: 2px;
+  transform: translateX(-50%) translateY(-50%);
+}
+
+.crosshair-v {
+  width: 2px;
+  height: 30px;
+  transform: translateX(-50%) translateY(-50%);
+}
+
+/* Highlight Circle */
+.highlight-circle {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border: 3px solid #ef4444;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+}
+
+.highlight-circle.animated-pulse {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(239, 68, 68, 0.3);
+    opacity: 0.7;
+  }
+}
+
+/* Target Label Card */
+.target-label {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+  animation: label-appear 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.label-text {
+  flex: 1;
+}
+
+.label-confidence {
+  padding: 2px 8px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.label-confidence.high {
+  background-color: rgba(16, 185, 129, 0.3);
+  color: #86efac;
+}
+
+.label-confidence.medium {
+  background-color: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+@keyframes label-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Coordinate Info Display */
+.coordinate-info {
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #fef2f2 0%, #ffe4e6 100%);
+  border-radius: 8px;
+  border-left: 3px solid #ef4444;
+}
+
+.coord-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #991b1b;
+  /* text-transform: uppercase; */
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.coord-values {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.coord-x,
+.coord-y {
+  font-family: 'Courier New', monospace;
+}
+
+.coord-sep {
+  color: #f87171;
+  font-weight: 300;
+}
+
+.coord-res {
+  font-size: 12px;
+  color: #991b1b;
+  margin-left: 4px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .screen-container {
+    max-width: 100%;
+  }
+
+  .screen-image {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .target-label {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .label-text {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .coord-label {
+    font-size: 11px;
+  }
+
+  .coord-values {
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .highlight-circle.animated-pulse {
+    animation: none;
+  }
+
+  .target-label {
+    animation: none;
+  }
+}

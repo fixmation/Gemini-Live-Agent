@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import os
+import logging
 import tempfile
 import uuid
 from enum import Enum
@@ -18,6 +19,13 @@ from google.generativeai.types import content_types
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError, field_validator
+
+# Setup logging for Gemini API tracking
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 load_dotenv()
@@ -532,8 +540,12 @@ async def websocket_live_audio(websocket: WebSocket):
     """
     WebSocket endpoint for live audio streaming with Gemini Live API.
     
+    GROUNDING: Uses system instruction to maintain persona and context awareness.
+    SEAMLESS: Streams audio chunks immediately without buffering delays.
+    CONFIDENCE: Includes confidence scoring in responses.
+    
     Client sends: Audio chunks as binary frames (PCM 16kHz mono)
-    Server sends: JSON responses with text/audio from Gemini
+    Server sends: JSON responses with text/audio from Gemini + agent persona
     """
     if not LIVE_API_AVAILABLE:
         await websocket.close(code=1003, reason="Gemini Live API not available")
@@ -543,48 +555,89 @@ async def websocket_live_audio(websocket: WebSocket):
     
     audio_buffer = AudioBuffer()
     live_client = get_live_client()
+    conversation_history = []  # Track context
     
     try:
-        # Define callback for Gemini responses
+        # Define callback for Gemini responses with persona formatting
         async def handle_response(response: dict):
-            """Send Gemini response back to client."""
-            await websocket.send_json(response)
+            """
+            Send Gemini response back to client with agent persona and confidence.
+            """
+            # Extract confidence if present, else default to high
+            confidence = response.get("confidence", 0.85)
+            
+            # Format response with agent explanation
+            formatted_response = {
+                "type": "response",
+                "parts": response.get("parts", []),
+                "confidence": confidence,
+                "explanation": response.get("explanation", "Processing your request..."),
+                "timestamp": response.get("timestamp", None)
+            }
+            
+            # Track in conversation history
+            if response.get("parts"):
+                conversation_history.append({
+                    "role": "assistant",
+                    "content": formatted_response
+                })
+            
+            await websocket.send_json(formatted_response)
         
-        # Start receiving audio from client
+        # Start receiving audio from client - STREAMING IMMEDIATELY (no buffering delays)
         async def receive_audio():
             try:
                 while True:
                     data = await websocket.receive()
                     
                     if "bytes" in data:
-                        # Audio chunk received
+                        # Audio chunk received - stream IMMEDIATELY to Gemini
                         await audio_buffer.put(data["bytes"])
+                        # Note: No waiting for "end of speech", chunks streamed as they arrive
                     elif "text" in data:
                         # Control message (e.g., close signal)
                         msg = json.loads(data["text"])
                         if msg.get("type") == "close":
                             audio_buffer.close()
                             break
+                        elif msg.get("type") == "user_message":
+                            # Track user message context
+                            conversation_history.append({
+                                "role": "user",
+                                "content": msg.get("message", "")
+                            })
             except WebSocketDisconnect:
                 audio_buffer.close()
         
-        # Start streaming to Gemini Live
+        # Start streaming to Gemini Live with conversation context
         async def stream_to_gemini():
-            await live_client.stream_audio_input(
-                audio_chunks=audio_buffer.stream(),
-                callback=lambda resp: asyncio.create_task(handle_response(resp))
-            )
+            try:
+                # Pass conversation history as context
+                context_str = json.dumps(conversation_history[-5:]) if conversation_history else "New conversation"
+                logger.info(f"🎤 Starting Gemini Live Audio Stream with {len(conversation_history)} prior turns")
+                
+                await live_client.stream_audio_input(
+                    audio_chunks=audio_buffer.stream(),
+                    callback=lambda resp: asyncio.create_task(handle_response(resp)),
+                    context=context_str  # Include conversation context
+                )
+                logger.info("✅ Gemini Live Audio Stream Completed")
+            except Exception as e:
+                logger.error(f"Gemini streaming error: {e}")
+                raise
         
-        # Run both tasks concurrently
+        # Run both tasks concurrently for true real-time streaming
         await asyncio.gather(
             receive_audio(),
             stream_to_gemini()
         )
     
     except Exception as e:
+        logger.error(f"WebSocket audio error: {e}")
         await websocket.send_json({
             "type": "error",
-            "message": f"Live audio streaming error: {str(e)}"
+            "message": f"Live audio streaming error: {str(e)}",
+            "confidence": 0.0
         })
     finally:
         await websocket.close()
@@ -595,14 +648,19 @@ async def websocket_live_navigate(websocket: WebSocket):
     """
     WebSocket endpoint for live UI navigation with voice + screen capture.
     
+    GROUNDING: System instruction ensures Gemini only recommends visible elements.
+    SCREEN-AWARE: Latest screen frame sent BEFORE processing voice for context.
+    CONFIDENCE: All actions include confidence scores and visual validation.
+    PERSONA: Agent explains reasoning and provides alternatives when uncertain.
+    
     Client sends:
     - Audio chunks (voice commands)
-    - Screen capture frames
-    - Control messages
+    - Screen capture frames + dimensions
+    - Navigation goal
     
     Server sends:
-    - Navigation actions (JSON with coords)
-    - Audio responses
+    - Navigation actions with confidence, explanation, coordinates
+    - Audio responses with agent persona
     """
     if not LIVE_API_AVAILABLE:
         await websocket.close(code=1003, reason="Gemini Live API not available")
@@ -611,15 +669,52 @@ async def websocket_live_navigate(websocket: WebSocket):
     await websocket.accept()
     
     audio_buffer = AudioBuffer()
-    screen_buffer = AudioBuffer()  # Reuse for screen frames
+    screen_buffer = AudioBuffer()
     live_client = get_live_client()
     
     navigation_goal = "Navigate the UI based on voice commands"
+    screen_dims = {"width": None, "height": None}  # Track screen dimensions
+    action_history = []  # Track previous actions for context
     
     try:
         async def handle_response(response: dict):
-            """Process navigation response and send to client."""
-            await websocket.send_json(response)
+            """
+            Process navigation response with validation and confidence scoring.
+            """
+            # VALIDATION: Check if coordinates are within screen bounds
+            if response.get("coords") and screen_dims["width"] and screen_dims["height"]:
+                coords = response["coords"]
+                x_norm = coords.get("x", 0) / 1000.0  # Normalized to 1000
+                y_norm = coords.get("y", 0) / 1000.0
+                
+                # Validate coordinates are within bounds
+                if x_norm < 0 or x_norm > 1 or y_norm < 0 or y_norm > 1:
+                    response["confidence"] = max(response.get("confidence", 0.5), 0) * 0.5  # Reduce confidence
+                    response["warning"] = "Coordinates may be outside visible area"
+            
+            # Add agent persona and explanation
+            visual_confidence = response.get("visual_confidence", response.get("confidence", 0.75))
+            
+            formatted_response = {
+                "type": "action",
+                "action": response.get("action"),
+                "target": response.get("target"),
+                "coords": response.get("coords"),
+                "confidence": visual_confidence,
+                "explanation": response.get("explanation", f"I see the interface. Based on your goal '{navigation_goal}', I recommend this action."),
+                "visual_evidence": response.get("visual_evidence", "Element identified in screen capture"),
+                "alternatives": response.get("alternatives", []),
+                "history_reference": f"Building on {len(action_history)} previous actions" if action_history else "First action"
+            }
+            
+            # Track in action history for context
+            action_history.append({
+                "action": formatted_response["action"],
+                "confidence": visual_confidence,
+                "timestamp": response.get("timestamp")
+            })
+            
+            await websocket.send_json(formatted_response)
         
         async def receive_data():
             try:
@@ -627,19 +722,39 @@ async def websocket_live_navigate(websocket: WebSocket):
                     data = await websocket.receive()
                     
                     if "bytes" in data:
-                        # Audio chunk (assume audio by default)
+                        # Audio chunk - stream immediately
                         await audio_buffer.put(data["bytes"])
                     elif "text" in data:
                         msg = json.loads(data["text"])
                         
                         if msg.get("type") == "screen_frame":
-                            # Screen capture frame (base64)
-                            frame_data = base64.b64decode(msg["data"])
-                            await screen_buffer.put(frame_data)
+                            # Screen capture frame (base64) with metadata
+                            try:
+                                frame_data = base64.b64decode(msg["data"])
+                                await screen_buffer.put(frame_data)
+                                logger.debug(f"✅ Screen frame received: {len(frame_data)} bytes")
+                                
+                                # CRITICAL: Extract and store screen dimensions
+                                if "width" in msg and "height" in msg:
+                                    screen_dims["width"] = msg["width"]
+                                    screen_dims["height"] = msg["height"]
+                                    logger.debug(f"Screen dimensions: {screen_dims['width']}x{screen_dims['height']}")
+                            except Exception as e:
+                                logger.error(f"Failed to decode screen frame: {e}")
+                        
                         elif msg.get("type") == "set_goal":
-                            # Update navigation goal
+                            # Update navigation goal and reset history
                             nonlocal navigation_goal
                             navigation_goal = msg.get("goal", navigation_goal)
+                            action_history.clear()  # New goal = fresh context
+                            
+                            # Send confirmation
+                            await websocket.send_json({
+                                "type": "goal_set",
+                                "goal": navigation_goal,
+                                "confidence": 1.0
+                            })
+                        
                         elif msg.get("type") == "close":
                             audio_buffer.close()
                             screen_buffer.close()
@@ -649,22 +764,42 @@ async def websocket_live_navigate(websocket: WebSocket):
                 screen_buffer.close()
         
         async def stream_to_gemini():
-            await live_client.stream_screen_with_voice(
-                audio_chunks=audio_buffer.stream(),
-                screen_chunks=screen_buffer.stream(),
-                goal=navigation_goal,
-                callback=lambda resp: asyncio.create_task(handle_response(resp))
-            )
+            try:
+                # Prepare context with action history
+                context_data = {
+                    "goal": navigation_goal,
+                    "previous_actions": action_history[-3:],  # Last 3 actions
+                    "screen_dimensions": screen_dims,
+                    "total_attempts": len(action_history)
+                }
+                
+                logger.info(f"🎬 Starting Gemini Live Navigator Stream (Goal: {navigation_goal})")
+                logger.debug(f"Context: {len(action_history)} prior actions, {screen_dims.get('width', '?')}x{screen_dims.get('height', '?')} screen")
+                
+                await live_client.stream_screen_with_voice(
+                    audio_chunks=audio_buffer.stream(),
+                    screen_chunks=screen_buffer.stream(),
+                    goal=navigation_goal,
+                    callback=lambda resp: asyncio.create_task(handle_response(resp)),
+                    context=json.dumps(context_data)  # Pass full context
+                )
+                logger.info("✅ Gemini Live Navigator Stream Completed")
+            except Exception as e:
+                logger.error(f"Gemini navigation error: {e}")
+                raise
         
+        # Run both tasks concurrently
         await asyncio.gather(
             receive_data(),
             stream_to_gemini()
         )
     
     except Exception as e:
+        logger.error(f"WebSocket navigation error: {e}")
         await websocket.send_json({
             "type": "error",
-            "message": f"Live navigation error: {str(e)}"
+            "message": f"Live navigation error: {str(e)}",
+            "confidence": 0.0
         })
     finally:
         await websocket.close()

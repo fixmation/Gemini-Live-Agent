@@ -1,0 +1,220 @@
+/* ============================================================================
+ * response-display.css
+ * Styles for agent response display with animations
+ * ============================================================================ */
+
+.response-display {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+/* Response Text Section */
+.response-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.response-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1e293b;
+  font-weight: 500;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background-color: #3b82f6;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+  vertical-align: middle;
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Evidence Section */
+.evidence-section {
+  padding: 12px;
+  background-color: rgba(251, 191, 36, 0.08);
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+  opacity: 0;
+  animation: fade-in 0.5s ease 0.3s forwards;
+}
+
+.evidence-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #92400e;
+  /* text-transform: uppercase; */
+  margin-bottom: 6px;
+}
+
+.evidence-emoji {
+  font-size: 14px;
+}
+
+.evidence-text {
+  font-size: 13px;
+  color: #b45309;
+  line-height: 1.5;
+}
+
+/* Alternatives Section */
+.alternatives-section {
+  padding: 12px;
+  background-color: rgba(34, 197, 94, 0.08);
+  border-left: 3px solid #22c55e;
+  border-radius: 6px;
+  opacity: 0;
+  animation: fade-in 0.5s ease 0.6s forwards;
+}
+
+.alternatives-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #166534;
+  /* text-transform: uppercase; */
+  margin-bottom: 10px;
+}
+
+.alternatives-emoji {
+  font-size: 14px;
+}
+
+.alternatives-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alternative-item {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  color: #15803d;
+  line-height: 1.5;
+}
+
+.alt-number {
+  font-weight: 700;
+  color: #22c55e;
+  min-width: 20px;
+}
+
+.alt-text {
+  flex: 1;
+}
+
+/* Fade In Animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.response-section.fade-in {
+  animation: fade-in 0.5s ease;
+}
+
+/* Metadata */
+.response-metadata {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #64748b;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  /* text-transform: uppercase; */
+  letter-spacing: 0.5px;
+}
+
+.meta-item {
+  font-weight: 600;
+}
+
+.meta-separator {
+  opacity: 0.5;
+}
+
+/* Empty State */
+.response-display:empty::before {
+  content: 'Waiting for response...';
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .response-display {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .response-text {
+    font-size: 14px;
+  }
+
+  .evidence-label {
+    font-size: 11px;
+  }
+
+  .evidence-text {
+    font-size: 12px;
+  }
+
+  .alternatives-label {
+    font-size: 11px;
+  }
+
+  .alternative-item {
+    font-size: 12px;
+  }
+
+  .response-metadata {
+    font-size: 10px;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .cursor {
+    animation: none;
+    opacity: 1;
+  }
+
+  .evidence-section,
+  .alternatives-section,
+  .response-section.fade-in {
+    animation: none;
+    opacity: 1;
+  }
+}
