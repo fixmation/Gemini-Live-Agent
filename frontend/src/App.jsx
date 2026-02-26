@@ -1247,7 +1247,7 @@ function App() {
                 type="button"
                 data-testid="export-workflow-button"
                 onClick={() => setShowExport((v) => !v)}
-                className="px-3 py-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
+                className="w-full sm:w-auto px-3 py-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
               >
                 {showExport ? "Hide" : "Show"} JSON
               </button>
@@ -1255,7 +1255,7 @@ function App() {
                 type="button"
                 data-testid="export-pdf-button"
                 onClick={exportSessionAsPDF}
-                className="px-3 py-2 ml-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
+                className="w-full sm:w-auto px-3 py-2 sm:ml-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
               >
                 Export PDF
               </button>
@@ -1263,7 +1263,7 @@ function App() {
                 type="button"
                 data-testid="export-pdf-server-button"
                 onClick={exportSessionAsPDFServer}
-                className="px-3 py-2 ml-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
+                className="w-full sm:w-auto px-3 py-2 sm:ml-2 text-xs rounded-lg border border-slate-700 text-slate-200 hover:border-sky-400 shrink-0"
               >
                 Export PDF (Server)
               </button>
